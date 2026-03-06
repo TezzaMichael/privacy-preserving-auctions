@@ -8,7 +8,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 fn main() {
     println!("=== Privacy-Preserving Auction Simulation ===");
 
-    // 1️⃣ Crea utenti di esempio
     let user1 = User {
         id: 1,
         username: "alice".to_string(),
@@ -25,7 +24,6 @@ fn main() {
     println!("{:?}", user1);
     println!("{:?}", user2);
 
-    // 2️⃣ Crea un'asta di esempio
     let auction = Auction {
         id: 1,
         min_bid: 1000,
@@ -41,7 +39,6 @@ fn main() {
     println!("\nCreated auction:");
     println!("{:?}", auction);
 
-    // 3️⃣ Simula bid degli utenti
     let bid1 = Bid {
         id: 1,
         auction_id: auction.id,
