@@ -1,19 +1,23 @@
 mod models;
-mod bulletin_board;
+mod services;
 
+use models::bulletin_board::BulletinBoard;
 use models::user::User;
 use models::auction::Auction;
 use models::bid::Bid;
 
-use bulletin_board::board::BulletinBoard;
+use services::bulletin_board;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn main() {
-    println!("=== Privacy-Preserving Auction Simulation ===");
 
-    let mut board = BulletinBoard::new();
+    println!("=== Privacy-Preserving Auction Test ===");
+    
+    // bulletin board
+    let mut board: BulletinBoard = bulletin_board::new_board();
 
+    // users
     let user1 = User {
         id: 1,
         username: "alice".to_string(),
@@ -26,13 +30,13 @@ fn main() {
         password_hash: "hash2".to_string(),
     };
 
-    board.register_user(user1.clone());
-    board.register_user(user2.clone());
+    bulletin_board::register_user(&mut board, user1);
+    bulletin_board::register_user(&mut board, user2);
 
-    println!("Registered users:");
-    println!("{:?}", user1);
-    println!("{:?}", user2);
+    println!("Users registered:");
+    println!("{:?}", board.users);
 
+    // auction
     let auction = Auction {
         id: 1,
         min_bid: 1000,
@@ -45,45 +49,30 @@ fn main() {
         winning_price: None,
     };
 
-    board.create_auction(auction.clone());
+    bulletin_board::create_auction(&mut board, auction);
 
-    println!("\nCreated auction:");
-    println!("{:?}", auction);
+    println!("Auctions:");
+    println!("{:?}", board.auctions);
 
-    let bid1 = Bid {
+    // bid
+    let bid = Bid {
         id: 1,
-        auction_id: auction.id,
-        user_id: user1.id,
-        commitment: "commitment1".to_string(),
+        auction_id: 1,
+        commitment: "fake_commitment".to_string(),
         timestamp: current_timestamp(),
     };
 
-    let bid2 = Bid {
-        id: 2,
-        auction_id: auction.id,
-        user_id: user2.id,
-        commitment: "commitment2".to_string(),
-        timestamp: current_timestamp(),
-    };
+    bulletin_board::submit_bid(&mut board, bid);
 
-    board.submit_bid(bid1.clone());
-    board.submit_bid(bid2.clone());
+    println!("Bids:");
+    println!("{:?}", board.bids);
 
-    println!("\nSubmitted bids:");
-    println!("{:?}", bid1);
-    println!("{:?}", bid2);
-
-    println!("\nBulletin Board state:");
-    println!("Users: {:?}", board.users);
-    println!("Auctions: {:?}", board.auctions);
-    println!("Bids: {:?}", board.bids);
-
-    println!("\nSimulation complete.");
+    println!("=== Test Completed ===");
 }
 
 fn current_timestamp() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
+        .unwrap()
         .as_secs()
 }
