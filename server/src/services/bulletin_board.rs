@@ -39,3 +39,19 @@ pub fn publish_certificate(board: &mut BulletinBoard, certificate: ProofCertific
 pub fn get_auction(board: &BulletinBoard, auction_id: u64) -> Option<&Auction> {
     board.auctions.iter().find(|a| a.id == auction_id)
 }
+
+pub fn print_public_bids(board: &BulletinBoard) {
+    let mut bids = board.bids.clone();
+
+    bids.sort_by_key(|b| b.timestamp);
+
+    println!("\n=== Bulletin Board (Ordered) ===");
+
+    for bid in bids {
+        println!(
+            "timestamp: {} | commitment: {}",
+            bid.timestamp,
+            bid.commitment
+        );
+    }
+}

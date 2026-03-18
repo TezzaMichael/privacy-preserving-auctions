@@ -1,29 +1,37 @@
-use axum::Json;
+use axum::{Json, extract::State};
 use serde::Deserialize;
+use std::sync::{Arc, Mutex};
 
 use crate::models::bid::Bid;
+use crate::models::bulletin_board::BulletinBoard;
+use crate::services::bulletin_board;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Deserialize)]
 pub struct SubmitBidRequest {
-    pub id: u64,
     pub auction_id: u64,
-    pub user_id: u64,
     pub commitment: String,
 }
 
 pub async fn submit_bid(
+    State(board): State<Arc<Mutex<BulletinBoard>>>,
     Json(payload): Json<SubmitBidRequest>,
 ) -> Json<Bid> {
 
+    let mut board = board.lock().unwrap();
+
+    // generate a new bid ID
+    let bid_id = board.bids.len() as u64 + 1;
+
     let bid = Bid {
-        id: payload.id,
+        id: bid_id,
         auction_id: payload.auction_id,
-        user_id: payload.user_id,
         commitment: payload.commitment,
         timestamp: current_timestamp(),
     };
+
+    bulletin_board::submit_bid(&mut board, bid.clone());
 
     Json(bid)
 }
