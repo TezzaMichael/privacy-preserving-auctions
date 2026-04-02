@@ -12,6 +12,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub struct SubmitBidRequest {
     pub auction_id: u64,
     pub commitment: String,
+    pub user_id: u64, // This should come from the authenticated user context in a real application
 }
 
 pub async fn submit_bid(
@@ -26,6 +27,7 @@ pub async fn submit_bid(
 
     let bid = Bid {
         id: bid_id,
+        user_id: payload.user_id, // This should come from the authenticated user context in a real application
         auction_id: payload.auction_id,
         commitment: payload.commitment,
         timestamp: current_timestamp(),

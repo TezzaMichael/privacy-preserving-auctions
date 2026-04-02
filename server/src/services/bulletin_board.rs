@@ -1,20 +1,15 @@
 use crate::models::bulletin_board::BulletinBoard;
-use crate::models::user::User;
+
 use crate::models::auction::Auction;
 use crate::models::bid::Bid;
 use crate::models::certificate::ProofCertificate;
 
 pub fn new_board() -> BulletinBoard {
     BulletinBoard {
-        users: Vec::new(),
         auctions: Vec::new(),
         bids: Vec::new(),
         certificates: Vec::new(),
     }
-}
-
-pub fn register_user(board: &mut BulletinBoard, user: User) {
-    board.users.push(user);
 }
 
 pub fn create_auction(board: &mut BulletinBoard, auction: Auction) {

@@ -3,10 +3,12 @@ mod services;
 mod api;
 mod crypto;
 
+use axum::http::response;
 use models::bulletin_board::BulletinBoard;
 use models::user::User;
 use models::auction::Auction;
 use models::bid::Bid;
+use models::certificate::ProofCertificate;
 
 use services::bulletin_board;
 use services::auction_service;
@@ -40,11 +42,6 @@ fn main() {
         password_hash: "hash2".to_string(),
     };
 
-    bulletin_board::register_user(&mut board, user1);
-    bulletin_board::register_user(&mut board, user2);
-
-    println!("\nUsers registered (NOT public in real system):");
-    println!("{:#?}", board.users);
 
     // -------------------------
     // 3. Auction
@@ -77,6 +74,7 @@ fn main() {
 
     let bid1 = Bid {
         id: 1,
+        user_id: 1,
         auction_id: 1,
         commitment: alice_commitment.clone(),
         timestamp: current_timestamp(),
@@ -89,13 +87,31 @@ fn main() {
 
     let bid2 = Bid {
         id: 2,
+        user_id: 2,
         auction_id: 1,
         commitment: bob_commitment.clone(),
         timestamp: current_timestamp(),
     };
+    
+    // Creation certificates (simulated)
+    let cert1 = crate::models::certificate::ProofCertificate {
+        bidder_id: 1,
+        auction_id: 1,
+        challenge: "challenge".to_string(),
+        response: "response1".to_string(),
+    };
+
+    let cert2 = crate::models::certificate::ProofCertificate {
+        bidder_id: 2,
+        auction_id: 1,
+        challenge: "challenge".to_string(),
+        response: "cert".to_string(),
+    };
 
     bulletin_board::submit_bid(&mut board, bid1);
     bulletin_board::submit_bid(&mut board, bid2);
+    bulletin_board::publish_certificate(&mut board, cert1);
+    bulletin_board::publish_certificate(&mut board, cert2);
 
     // -------------------------
     // 🔐 PUBLIC BULLETIN BOARD
@@ -104,12 +120,16 @@ fn main() {
 
     for bid in &board.bids {
         println!(
-            "timestamp: {} | commitment: {}",
+            "timestamp: {} | commitment: {} | certificates: {}",
             bid.timestamp,
-            bid.commitment
+            bid.commitment,
+            board.certificates.iter()
+                .filter(|c| c.auction_id == bid.auction_id && c.bidder_id == bid.user_id)
+                .map(|c| format!("{}", c.response))
+                .collect::<Vec<String>>()
+                .join(", ")
         );
     }
-
     // -------------------------
     // 5. Opening simulation
     // -------------------------
