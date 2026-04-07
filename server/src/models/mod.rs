@@ -1,5 +1,10 @@
 pub mod user;
 pub mod auction;
 pub mod bid;
-pub mod certificate;
 pub mod bulletin_board;
+pub mod enums;
+pub mod reveal;
+pub mod proof;
+pub mod responses;
+pub mod requests;
+pub mod app_state;
