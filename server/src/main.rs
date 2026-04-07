@@ -1,178 +1,102 @@
+use std::sync::{Arc, RwLock};
+use std::collections::HashMap;
+use uuid::Uuid;
+use serde_json::json;
+use chrono::{Utc, Duration};
+
 mod models;
 mod services;
-mod api;
-mod crypto;
 
-use axum::http::response;
-use models::bulletin_board::BulletinBoard;
-use models::user::User;
-use models::auction::Auction;
-use models::bid::Bid;
-use models::certificate::ProofCertificate;
-
-use services::bulletin_board;
-use services::auction_service;
-
-use crate::crypto::commitment;
-
-use std::time::{SystemTime, UNIX_EPOCH};
-use std::collections::HashMap;
+use crate::models::{
+    app_state::AppState,
+    enums::EntryKind,
+};
+use crate::services::bulletin_board::{
+    append_entry, get_entries_for_auction, get_last_hash, verify_chain,
+};
 
 fn main() {
+    println!("=== Avvio simulazione asta ===");
 
-    println!("=== Privacy-Preserving Auction Test ===");
-
-    // -------------------------
-    // 1. Bulletin Board
-    // -------------------------
-    let mut board: BulletinBoard = bulletin_board::new_board();
-
-    // -------------------------
-    // 2. Users
-    // -------------------------
-    let user1 = User {
-        id: 1,
-        username: "alice".to_string(),
-        password_hash: "hash1".to_string(),
+    // --- 1️⃣ Stato globale ---
+    let state = AppState {
+        users: Arc::new(RwLock::new(HashMap::new())),
+        by_name: Arc::new(RwLock::new(HashMap::new())),
+        auctions: Arc::new(RwLock::new(HashMap::new())),
+        bids: Arc::new(RwLock::new(HashMap::new())),
+        reveals: Arc::new(RwLock::new(HashMap::new())),
+        proofs: Arc::new(RwLock::new(HashMap::new())),
+        bb: Arc::new(RwLock::new(HashMap::new())),
+        jwt_secret: "jwt_dummy_secret".to_string(),
+        server_private_key: "server_private_key_dummy".to_string(),
+        server_public_key: "server_public_key_dummy".to_string(),
+        pedersen_b: "pedersen_b_dummy".to_string(),
+        pedersen_b_blind: "pedersen_b_blind_dummy".to_string(),
     };
 
-    let user2 = User {
-        id: 2,
-        username: "bob".to_string(),
-        password_hash: "hash2".to_string(),
-    };
+    // --- 2️⃣ Creazione utenti ---
+    let user_ids: Vec<Uuid> = (1..=3).map(|_| Uuid::new_v4()).collect();
+    println!("Utenti creati:");
+    for (i, uid) in user_ids.iter().enumerate() {
+        println!("User{} -> {}", i+1, uid);
+    }
 
+    // --- 3️⃣ Creazione asta ---
+    let auction_id = Uuid::new_v4();
+    let start_time = Utc::now() - Duration::seconds(10); // già iniziata
+    let end_time = Utc::now() + Duration::minutes(10);
 
-    // -------------------------
-    // 3. Auction
-    // -------------------------
-    let auction = Auction {
-        id: 1,
-        min_bid: 1000,
-        max_bid: 2000,
-        step: 100,
-        start_time: current_timestamp(),
-        end_time: current_timestamp() + 3600,
-        bids: vec![],
-        winner: None,
-        winning_price: None,
-    };
+    println!("Asta creata con id: {}", auction_id);
 
-    bulletin_board::create_auction(&mut board, auction);
+    // --- 4️⃣ Invio bid ---
+    for (i, user_id) in user_ids.iter().enumerate() {
+        let commitment = format!("commitment{}", i+1);
+        let entry = append_entry(
+            &state,
+            auction_id,
+            EntryKind::SealedBid,
+            json!({
+                "bidder": user_id,
+                "commitment": commitment,
+                "timestamp": Utc::now()
+            }),
+        );
+        println!("Bid inviato da User{}: Entry ID {}", i+1, entry.id);
+    }
 
-    println!("\nAuction created:");
-    println!("{:#?}", board.auctions);
-
-    // -------------------------
-    // 4. Bids (PRIVATE)
-    // -------------------------
-
-    // Alice bid = 1500
-    let alice_bid_value = 1500;
-    let alice_nonce = commitment::generate_nonce();
-    let alice_commitment = commitment::commit(alice_bid_value, &alice_nonce);
-
-    let bid1 = Bid {
-        id: 1,
-        user_id: 1,
-        auction_id: 1,
-        commitment: alice_commitment.clone(),
-        timestamp: current_timestamp(),
-    };
-
-    // Bob bid = 1700
-    let bob_bid_value = 1700;
-    let bob_nonce = commitment::generate_nonce();
-    let bob_commitment = commitment::commit(bob_bid_value, &bob_nonce);
-
-    let bid2 = Bid {
-        id: 2,
-        user_id: 2,
-        auction_id: 1,
-        commitment: bob_commitment.clone(),
-        timestamp: current_timestamp(),
-    };
-    
-    // Creation certificates (simulated)
-    let cert1 = crate::models::certificate::ProofCertificate {
-        bidder_id: 1,
-        auction_id: 1,
-        challenge: "challenge".to_string(),
-        response: "response1".to_string(),
-    };
-
-    let cert2 = crate::models::certificate::ProofCertificate {
-        bidder_id: 2,
-        auction_id: 1,
-        challenge: "challenge".to_string(),
-        response: "cert".to_string(),
-    };
-
-    bulletin_board::submit_bid(&mut board, bid1);
-    bulletin_board::submit_bid(&mut board, bid2);
-    bulletin_board::publish_certificate(&mut board, cert1);
-    bulletin_board::publish_certificate(&mut board, cert2);
-
-    // -------------------------
-    // 🔐 PUBLIC BULLETIN BOARD
-    // -------------------------
-    println!("\n=== Bulletin Board (Public View) ===");
-
-    for bid in &board.bids {
+    // --- 5️⃣ Mostra tutte le entry dell'asta ---
+    let entries = get_entries_for_auction(&state, auction_id);
+    println!("\n--- Tutte le entry dell'asta ---");
+    for entry in &entries {
         println!(
-            "timestamp: {} | commitment: {} | certificates: {}",
-            bid.timestamp,
-            bid.commitment,
-            board.certificates.iter()
-                .filter(|c| c.auction_id == bid.auction_id && c.bidder_id == bid.user_id)
-                .map(|c| format!("{}", c.response))
-                .collect::<Vec<String>>()
-                .join(", ")
+            "Seq {} | Kind {:?} | Bidder {:?} | Commitment {:?}",
+            entry.sequence,
+            entry.kind,
+            entry.payload["bidder"],
+            entry.payload["commitment"]
         );
     }
-    // -------------------------
-    // 5. Opening simulation
-    // -------------------------
-    println!("\n=== Opening Phase (Simulation) ===");
 
-    println!("Bob reveals bid + nonce");
+    // --- 6️⃣ Verifica integrità bulletin board ---
+    let valid = verify_chain(&entries);
+    println!("\nIntegrità hash chain: {}", valid);
 
-    let is_valid = commitment::verify(&bob_commitment, bob_bid_value, &bob_nonce);
-
-    println!("Verification result: {}", is_valid);
-
-    if is_valid {
-        println!("Bob's bid is VALID and can be accepted");
-    } else {
-        println!("Invalid opening!");
+    // --- 7️⃣ Ultimo hash per audit incrementale ---
+    if let Some(last_hash) = get_last_hash(&state, auction_id) {
+        println!("Ultimo hash dell'asta: {}", last_hash);
     }
 
-    // -------------------------
-    // 6. Winner determination
-    // -------------------------
-    let mut openings = HashMap::new();
+    // --- 8️⃣ Mock selezione vincitore ---
+    if !entries.is_empty() {
+        let winner_entry = &entries[0]; // finto: il primo è il vincitore
+        println!("\n Vincitore simulato:");
+        println!(
+            "Bidder: {:?}, Commitment: {:?}, Entry ID: {}",
+            winner_entry.payload["bidder"],
+            winner_entry.payload["commitment"],
+            winner_entry.id
+        );
+    }
 
-    openings.insert(1, (alice_bid_value, alice_nonce.clone()));
-    openings.insert(2, (bob_bid_value, bob_nonce.clone()));
-
-    auction_service::determine_winner(&mut board, 1, &openings);
-
-    println!("\n=== Auction Result ===");
-    println!("{:#?}", board.auctions);
-
-    // -------------------------
-    // DEBUG (NOT PUBLIC)
-    // -------------------------
-    println!("\n[DEBUG - SECRET VALUES]");
-    println!("Alice bid: {}", alice_bid_value);
-    println!("Bob bid: {}", bob_bid_value);
-
-    println!("\n=== Test Completed ===");
-}
-
-fn current_timestamp() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
+    println!("\n=== Fine simulazione asta ===");
 }
