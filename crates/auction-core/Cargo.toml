@@ -1,0 +1,13 @@
+[package]
+name    = "auction-core"
+version = "0.1.0"
+edition = "2026"
+
+[dependencies]
+serde      = { workspace = true }
+serde_json = { workspace = true }
+uuid       = { workspace = true }
+chrono     = { workspace = true }
+hex        = { workspace = true }
+thiserror  = { workspace = true }
+sqlx       = { workspace = true }

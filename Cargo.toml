@@ -1,0 +1,21 @@
+[workspace]
+members = [
+    "crates/auction-core",
+    "crates/auction-crypto",
+    "crates/auction-verifier",
+    "crates/auction-server",
+    "crates/auction-client"
+]
+resolver = "2"
+
+[workspace.dependencies]
+curve25519-dalek = { version = "4", features = ["ristretto"] }
+ed25519-dalek = { version = "2", features = ["serde"] }
+sha2 = "0.10"
+rand = "0.8"
+axum = { version = "0.7", features = ["macros"] }
+sqlx = { version = "0.7", features = ["sqlite", "postgres", "uuid", "runtime-tokio"] }
+wasm-bindgen = "0.2"
+serde-wasm-bindgen = "0.6"
+jsonwebtoken = "9"
+tokio = { version = "1", features = ["full"] }

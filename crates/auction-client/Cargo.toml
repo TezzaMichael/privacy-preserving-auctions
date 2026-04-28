@@ -1,0 +1,27 @@
+[package]
+name    = "auction-client"
+version = "0.1.0"
+edition = "2026"
+
+[[bin]]
+name = "auction-cli"
+path = "src/main.rs"
+
+[lib]
+name = "auction_client"
+path = "src/lib.rs"
+
+[dependencies]
+auction-core     = { workspace = true }
+auction-crypto   = { workspace = true }
+auction-verifier = { workspace = true }
+serde            = { workspace = true }
+serde_json       = { workspace = true }
+uuid             = { workspace = true }
+chrono           = { workspace = true }
+hex              = { workspace = true }
+thiserror        = { workspace = true }
+anyhow           = { workspace = true }
+tokio            = { workspace = true }
+reqwest          = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+rand             = { workspace = true }
