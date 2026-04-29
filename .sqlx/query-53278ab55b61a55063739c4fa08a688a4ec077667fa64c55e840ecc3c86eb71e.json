@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id as \"id!: Uuid\", auction_id as \"auction_id!: Uuid\",\n            bidder_id as \"bidder_id!: Uuid\", bid_id as \"bid_id!: Uuid\",\n            revealed_value, proof_json, CAST(verified AS BOOLEAN) as \"verified!: bool\", bb_sequence,\n            submitted_at as \"submitted_at!: _\"\n            FROM loser_proofs WHERE auction_id = ? ORDER BY submitted_at ASC",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: Uuid",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "auction_id!: Uuid",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "bidder_id!: Uuid",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "bid_id!: Uuid",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "revealed_value",
+        "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "proof_json",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "verified!: bool",
+        "ordinal": 6,
+        "type_info": "Numeric"
+      },
+      {
+        "name": "bb_sequence",
+        "ordinal": 7,
+        "type_info": "Int64"
+      },
+      {
+        "name": "submitted_at!: _",
+        "ordinal": 8,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "53278ab55b61a55063739c4fa08a688a4ec077667fa64c55e840ecc3c86eb71e"
+}

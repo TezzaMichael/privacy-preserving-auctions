@@ -9,13 +9,53 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-curve25519-dalek = { version = "4", features = ["ristretto"] }
-ed25519-dalek = { version = "2", features = ["serde"] }
-sha2 = "0.10"
-rand = "0.8"
+# Utility e Core
+chrono = { version = "0.4", features = ["serde"] }
+hex = "0.4"
+anyhow = "1.0"
+thiserror = "1.0"
+uuid = { version = "1.10", features = ["v4", "serde", "js"] }
+dotenvy = "0.15"
+
+# Asincronicità
+tokio = { version = "1.38", features = ["full"] }
+
+# Database (Aggiunto tls-rustls obbligatorio per Postgres in sqlx 0.7)
+sqlx = { version = "0.7", features = ["sqlite", "postgres", "uuid", "runtime-tokio", "tls-rustls", "chrono"] }
+
+# Web e Networking (Stack Axum)
 axum = { version = "0.7", features = ["macros"] }
-sqlx = { version = "0.7", features = ["sqlite", "postgres", "uuid", "runtime-tokio"] }
+axum-extra = "0.9"
+hyper = "1.4"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["fs", "trace", "cors"] }
+
+# Crittografia e Sicurezza
+curve25519-dalek = { version = "4.1", features = ["alloc", "group"] }
+ed25519-dalek = { version = "2.1", features = ["serde", "rand_core"] }
+sha2 = "0.10"
+sha3 = "0.10"
+rand = "0.8"
+rand_core = "0.6"
+subtle = "2.6"
+zeroize = { version = "1.8", features = ["derive"] }
+argon2 = { version = "0.5", features = ["std"] }
+password-hash = "0.5"
+jsonwebtoken = "9.3"
+
+# Serializzazione e WASM
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 wasm-bindgen = "0.2"
 serde-wasm-bindgen = "0.6"
-jsonwebtoken = "9"
-tokio = { version = "1", features = ["full"] }
+
+# Logging e Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Crate Interni (Percorsi relativi dalla root)
+auction-core = { path = "crates/auction-core" }
+auction-crypto = { path = "crates/auction-crypto" }
+auction-client = { path = "crates/auction-client" }
+auction-server = { path = "crates/auction-server" }
+auction-verifier = { path = "crates/auction-verifier" }

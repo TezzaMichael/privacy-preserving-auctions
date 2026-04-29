@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE winner_reveals SET bb_sequence = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "67921c2b2eae55873e841a243a91d2bb440beb157fa465e84c06141e5894045c"
+}

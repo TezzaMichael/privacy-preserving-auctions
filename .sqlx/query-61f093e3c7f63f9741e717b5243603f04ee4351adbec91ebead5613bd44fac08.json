@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id as \"id!: Uuid\", creator_id as \"creator_id!: Uuid\", title, description,\n               status as \"status!: AuctionStatus\", reserve_price, server_signature_hex,\n               bb_create_sequence, created_at as \"created_at!: _\", updated_at as \"updated_at!: _\"\n               FROM auctions WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: Uuid",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "creator_id!: Uuid",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "title",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "description",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "status!: AuctionStatus",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "reserve_price",
+        "ordinal": 5,
+        "type_info": "Int64"
+      },
+      {
+        "name": "server_signature_hex",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "bb_create_sequence",
+        "ordinal": 7,
+        "type_info": "Int64"
+      },
+      {
+        "name": "created_at!: _",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at!: _",
+        "ordinal": 9,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "61f093e3c7f63f9741e717b5243603f04ee4351adbec91ebead5613bd44fac08"
+}

@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT sequence, auction_id as \"auction_id: Uuid\",\n               entry_kind as \"entry_kind: EntryKind\", payload_json,\n               prev_hash_hex, entry_hash_hex, server_signature_hex,\n               recorded_at as \"recorded_at: _\"\n               FROM bulletin_board WHERE auction_id = ? AND sequence = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "sequence",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "auction_id: Uuid",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "entry_kind: EntryKind",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "payload_json",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "prev_hash_hex",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "entry_hash_hex",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "server_signature_hex",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "recorded_at: _",
+        "ordinal": 7,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c2fc475bfdb86abc92318f96a23e814aed4501fb9969d61216541c4415379c63"
+}

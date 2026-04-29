@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE loser_proofs SET bb_sequence = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "7c3d49f0eeac27276f0655c1d8ae72258ae14714017cafa421af042fcf79861b"
+}

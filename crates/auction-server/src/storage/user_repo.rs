@@ -19,7 +19,7 @@ impl UserRepo {
     pub async fn find_by_id(&self, id: Uuid) -> Result<User, AuctionError> {
         sqlx::query_as!(
             User,
-            "SELECT id as \"id: Uuid\", username, password_hash, public_key_hex,
+            "SELECT id as \"id!: Uuid\", username, password_hash, public_key_hex,
                     created_at as \"created_at: _\"
              FROM users WHERE id = ?",
             id
@@ -35,7 +35,7 @@ impl UserRepo {
     pub async fn find_by_username(&self, username: &str) -> Result<Option<User>, AuctionError> {
         sqlx::query_as!(
             User,
-            "SELECT id as \"id: Uuid\", username, password_hash, public_key_hex,
+            "SELECT id as \"id!: Uuid\", username, password_hash, public_key_hex,
                     created_at as \"created_at: _\"
              FROM users WHERE username = ?",
             username

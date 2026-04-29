@@ -62,8 +62,7 @@ async fn reveal_winner(
         .append(auction_id, auction_core::bulletin_board::EntryKind::WinnerReveal, payload, &state.server_signer)
         .await?;
     state.proof_service.update_winner_bb_sequence(record.id, entry.sequence).await?;
-    state.auction_service.transition(auction_id, user_id, AuctionStatus::ProofPhase).await
-        .unwrap_or(());
+    state.auction_service.transition(auction_id, user_id, AuctionStatus::ProofPhase).await.ok();
 
     Ok(Json(RevealWinnerResponse {
         reveal_id: record.id,

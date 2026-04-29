@@ -21,8 +21,8 @@ impl ProofRepo {
     pub async fn find_winner_reveal(&self, auction_id: Uuid) -> Result<Option<WinnerRevealRecord>, AuctionError> {
         sqlx::query_as!(
             WinnerRevealRecord,
-            r#"SELECT id as "id: Uuid", auction_id as "auction_id: Uuid",
-               winner_id as "winner_id: Uuid", bid_id as "bid_id: Uuid",
+            r#"SELECT id as "id!: Uuid", auction_id as "auction_id!: Uuid",
+               winner_id as "winner_id!: Uuid", bid_id as "bid_id!: Uuid",
                revealed_value, proof_json, bb_sequence,
                submitted_at as "submitted_at: _"
                FROM winner_reveals WHERE auction_id = ?"#,
@@ -56,11 +56,11 @@ impl ProofRepo {
     pub async fn find_loser_proofs(&self, auction_id: Uuid) -> Result<Vec<LoserProofRecord>, AuctionError> {
         sqlx::query_as!(
             LoserProofRecord,
-            r#"SELECT id as "id: Uuid", auction_id as "auction_id: Uuid",
-               bidder_id as "bidder_id: Uuid", bid_id as "bid_id: Uuid",
-               revealed_value, proof_json, verified, bb_sequence,
-               submitted_at as "submitted_at: _"
-               FROM loser_proofs WHERE auction_id = ? ORDER BY submitted_at ASC"#,
+            r#"SELECT id as "id!: Uuid", auction_id as "auction_id!: Uuid",
+            bidder_id as "bidder_id!: Uuid", bid_id as "bid_id!: Uuid",
+            revealed_value, proof_json, CAST(verified AS BOOLEAN) as "verified!: bool", bb_sequence,
+            submitted_at as "submitted_at!: _"
+            FROM loser_proofs WHERE auction_id = ? ORDER BY submitted_at ASC"#,
             auction_id
         )
         .fetch_all(&self.0)
@@ -73,11 +73,11 @@ impl ProofRepo {
     ) -> Result<Option<LoserProofRecord>, AuctionError> {
         sqlx::query_as!(
             LoserProofRecord,
-            r#"SELECT id as "id: Uuid", auction_id as "auction_id: Uuid",
-               bidder_id as "bidder_id: Uuid", bid_id as "bid_id: Uuid",
-               revealed_value, proof_json, verified, bb_sequence,
-               submitted_at as "submitted_at: _"
-               FROM loser_proofs WHERE auction_id = ? AND bidder_id = ?"#,
+            r#"SELECT id as "id!: Uuid", auction_id as "auction_id!: Uuid",
+            bidder_id as "bidder_id!: Uuid", bid_id as "bid_id!: Uuid",
+            revealed_value, proof_json, CAST(verified AS BOOLEAN) as "verified!: bool", bb_sequence,
+            submitted_at as "submitted_at!: _"
+            FROM loser_proofs WHERE auction_id = ? AND bidder_id = ?"#,
             auction_id, bidder_id
         )
         .fetch_optional(&self.0)

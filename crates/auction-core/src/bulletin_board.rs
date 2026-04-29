@@ -2,8 +2,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
-#[sqlx(type_name = "TEXT")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(sqlx::Type))]
+#[cfg_attr(not(target_arch = "wasm32"), sqlx(type_name = "TEXT"))]
 pub enum EntryKind {
     AuctionCreate,
     AuctionOpen,
@@ -21,7 +22,8 @@ impl std::fmt::Display for EntryKind {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(sqlx::FromRow))]
 pub struct BulletinBoardEntry {
     pub sequence: i64,
     pub auction_id: Uuid,

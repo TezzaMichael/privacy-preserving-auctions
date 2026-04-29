@@ -2,7 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(sqlx::FromRow))]
 pub struct SealedBid {
     pub id: Uuid,
     pub auction_id: Uuid,

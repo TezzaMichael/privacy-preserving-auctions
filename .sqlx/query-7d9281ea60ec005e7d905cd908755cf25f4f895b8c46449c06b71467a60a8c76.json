@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id as \"id!: Uuid\", username, password_hash, public_key_hex,\n                    created_at as \"created_at: _\"\n             FROM users WHERE username = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: Uuid",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "username",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "password_hash",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "public_key_hex",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at: _",
+        "ordinal": 4,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "7d9281ea60ec005e7d905cd908755cf25f4f895b8c46449c06b71467a60a8c76"
+}

@@ -22,9 +22,9 @@ impl AuctionRepo {
     pub async fn find_by_id(&self, id: Uuid) -> Result<Auction, AuctionError> {
         sqlx::query_as!(
             Auction,
-            r#"SELECT id as "id: Uuid", creator_id as "creator_id: Uuid", title, description,
-               status as "status: AuctionStatus", reserve_price, server_signature_hex,
-               bb_create_sequence, created_at as "created_at: _", updated_at as "updated_at: _"
+            r#"SELECT id as "id!: Uuid", creator_id as "creator_id!: Uuid", title, description,
+               status as "status!: AuctionStatus", reserve_price, server_signature_hex,
+               bb_create_sequence, created_at as "created_at!: _", updated_at as "updated_at!: _"
                FROM auctions WHERE id = ?"#,
             id
         )
@@ -39,9 +39,9 @@ impl AuctionRepo {
     pub async fn list_all(&self) -> Result<Vec<Auction>, AuctionError> {
         sqlx::query_as!(
             Auction,
-            r#"SELECT id as "id: Uuid", creator_id as "creator_id: Uuid", title, description,
-               status as "status: AuctionStatus", reserve_price, server_signature_hex,
-               bb_create_sequence, created_at as "created_at: _", updated_at as "updated_at: _"
+            r#"SELECT id as "id!: Uuid", creator_id as "creator_id!: Uuid", title, description,
+               status as "status!: AuctionStatus", reserve_price, server_signature_hex,
+               bb_create_sequence, created_at as "created_at!: _", updated_at as "updated_at!: _"
                FROM auctions ORDER BY created_at DESC"#
         )
         .fetch_all(&self.0)

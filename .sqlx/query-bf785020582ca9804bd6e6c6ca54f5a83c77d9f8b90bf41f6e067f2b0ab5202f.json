@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO loser_proofs (id, auction_id, bidder_id, bid_id, revealed_value,\n             proof_json, verified, bb_sequence, submitted_at)\n             VALUES (?,?,?,?,?,?,?,?,?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "bf785020582ca9804bd6e6c6ca54f5a83c77d9f8b90bf41f6e067f2b0ab5202f"
+}

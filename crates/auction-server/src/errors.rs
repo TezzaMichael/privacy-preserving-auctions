@@ -17,3 +17,9 @@ impl IntoResponse for ApiError {
 }
 
 pub type ApiResult<T> = Result<T, ApiError>;
+
+impl From<serde_json::Error> for ApiError {
+    fn from(e: serde_json::Error) -> Self {
+        Self(AuctionError::Internal(format!("JSON error: {}", e)))
+    }
+}

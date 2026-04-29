@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO sealed_bids (id, auction_id, bidder_id, commitment_hex,\n             bidder_signature_hex, bb_sequence, submitted_at)\n             VALUES (?,?,?,?,?,?,?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "0d2a389247684e9fbbed96a4067a6143f00173e23193079811c5e126cf2b9de5"
+}

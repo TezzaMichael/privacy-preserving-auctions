@@ -21,8 +21,8 @@ impl BidRepo {
     pub async fn find_by_id(&self, id: Uuid) -> Result<SealedBid, AuctionError> {
         sqlx::query_as!(
             SealedBid,
-            r#"SELECT id as "id: Uuid", auction_id as "auction_id: Uuid",
-               bidder_id as "bidder_id: Uuid", commitment_hex, bidder_signature_hex,
+            r#"SELECT id as "id!: Uuid", auction_id as "auction_id!: Uuid",
+               bidder_id as "bidder_id!: Uuid", commitment_hex, bidder_signature_hex,
                bb_sequence, submitted_at as "submitted_at: _"
                FROM sealed_bids WHERE id = ?"#,
             id
@@ -35,8 +35,8 @@ impl BidRepo {
     pub async fn find_by_auction(&self, auction_id: Uuid) -> Result<Vec<SealedBid>, AuctionError> {
         sqlx::query_as!(
             SealedBid,
-            r#"SELECT id as "id: Uuid", auction_id as "auction_id: Uuid",
-               bidder_id as "bidder_id: Uuid", commitment_hex, bidder_signature_hex,
+            r#"SELECT id as "id!: Uuid", auction_id as "auction_id!: Uuid",
+               bidder_id as "bidder_id!: Uuid", commitment_hex, bidder_signature_hex,
                bb_sequence, submitted_at as "submitted_at: _"
                FROM sealed_bids WHERE auction_id = ? ORDER BY submitted_at ASC"#,
             auction_id
@@ -51,8 +51,8 @@ impl BidRepo {
     ) -> Result<Option<SealedBid>, AuctionError> {
         sqlx::query_as!(
             SealedBid,
-            r#"SELECT id as "id: Uuid", auction_id as "auction_id: Uuid",
-               bidder_id as "bidder_id: Uuid", commitment_hex, bidder_signature_hex,
+            r#"SELECT id as "id!: Uuid", auction_id as "auction_id!: Uuid",
+               bidder_id as "bidder_id!: Uuid", commitment_hex, bidder_signature_hex,
                bb_sequence, submitted_at as "submitted_at: _"
                FROM sealed_bids WHERE bidder_id = ? AND auction_id = ?"#,
             bidder_id, auction_id
@@ -75,6 +75,6 @@ impl BidRepo {
         )
         .fetch_one(&self.0)
         .await?;
-        Ok(row.cnt)
+        Ok(row.cnt.into())
     }
 }

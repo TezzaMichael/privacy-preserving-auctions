@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO winner_reveals (id, auction_id, winner_id, bid_id, revealed_value,\n             proof_json, bb_sequence, submitted_at)\n             VALUES (?,?,?,?,?,?,?,?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "322398564bd89333aac5f3ef5fa086604f3f2ec84923d092aa92d2149659965a"
+}

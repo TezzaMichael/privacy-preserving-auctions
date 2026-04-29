@@ -3,7 +3,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use crate::enums::AuctionStatus;
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(sqlx::FromRow))]
 pub struct Auction {
     pub id: Uuid,
     pub creator_id: Uuid,

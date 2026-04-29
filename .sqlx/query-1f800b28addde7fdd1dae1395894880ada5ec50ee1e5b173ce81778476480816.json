@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id as \"id!: Uuid\", auction_id as \"auction_id!: Uuid\",\n               winner_id as \"winner_id!: Uuid\", bid_id as \"bid_id!: Uuid\",\n               revealed_value, proof_json, bb_sequence,\n               submitted_at as \"submitted_at: _\"\n               FROM winner_reveals WHERE auction_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: Uuid",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "auction_id!: Uuid",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "winner_id!: Uuid",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "bid_id!: Uuid",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "revealed_value",
+        "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "proof_json",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "bb_sequence",
+        "ordinal": 6,
+        "type_info": "Int64"
+      },
+      {
+        "name": "submitted_at: _",
+        "ordinal": 7,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "1f800b28addde7fdd1dae1395894880ada5ec50ee1e5b173ce81778476480816"
+}

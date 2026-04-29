@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO bulletin_board (sequence, auction_id, entry_kind, payload_json,\n             prev_hash_hex, entry_hash_hex, server_signature_hex, recorded_at)\n             VALUES (?,?,?,?,?,?,?,?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "a61c1decb7da3c6e9c96c9d651554b7e065b3bd930d0fdf3952c28643e70efc9"
+}

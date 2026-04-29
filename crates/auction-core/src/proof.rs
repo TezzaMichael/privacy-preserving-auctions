@@ -2,7 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(sqlx::FromRow))]
 pub struct WinnerRevealRecord {
     pub id: Uuid,
     pub auction_id: Uuid,
@@ -29,7 +30,8 @@ impl WinnerRevealRecord {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(sqlx::FromRow))]
 pub struct LoserProofRecord {
     pub id: Uuid,
     pub auction_id: Uuid,

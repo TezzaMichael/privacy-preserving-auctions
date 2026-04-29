@@ -30,7 +30,7 @@ async fn main() -> anyhow::Result<()> {
         .connect(&cfg.database_url)
         .await?;
 
-    sqlx::migrate!("./migrations").run(&pool).await?;
+    sqlx::migrate!("./src/migrations").run(&pool).await?;
 
     let state = Arc::new(AppState::new(pool, &cfg).await?);
 

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE auctions SET server_signature_hex = ?, updated_at = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "6d9c5a68224e693f4347f8952eee7ffc8c9786d29f49c9aebfb8077acaa0cbc2"
+}

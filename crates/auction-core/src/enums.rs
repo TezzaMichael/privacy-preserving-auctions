@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
-#[sqlx(type_name = "TEXT")]
-#[sqlx(rename_all = "PascalCase")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(sqlx::Type))]
+#[cfg_attr(not(target_arch = "wasm32"), sqlx(type_name = "TEXT"))]
+#[cfg_attr(not(target_arch = "wasm32"), sqlx(rename_all = "PascalCase"))]
 pub enum AuctionStatus {
     Pending,
     BiddingOpen,

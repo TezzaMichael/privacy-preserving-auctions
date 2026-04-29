@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id as \"id!: Uuid\", auction_id as \"auction_id!: Uuid\",\n               bidder_id as \"bidder_id!: Uuid\", commitment_hex, bidder_signature_hex,\n               bb_sequence, submitted_at as \"submitted_at: _\"\n               FROM sealed_bids WHERE bidder_id = ? AND auction_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: Uuid",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "auction_id!: Uuid",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "bidder_id!: Uuid",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "commitment_hex",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "bidder_signature_hex",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "bb_sequence",
+        "ordinal": 5,
+        "type_info": "Int64"
+      },
+      {
+        "name": "submitted_at: _",
+        "ordinal": 6,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "5021b7758a78acd9869c2573a1c7d0e5b2ad1d2c539f396cace671ee79e6c9e5"
+}

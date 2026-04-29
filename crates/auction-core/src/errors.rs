@@ -36,6 +36,7 @@ pub enum AuctionError {
     DuplicateProof,
     #[error("bulletin board integrity check failed: {0}")]
     BulletinBoardCorrupted(String),
+    #[cfg(not(target_arch = "wasm32"))]
     #[error("storage error: {0}")]
     Storage(#[from] sqlx::Error),
     #[error("serialization error: {0}")]
@@ -63,6 +64,7 @@ impl AuctionError {
             Self::NotALoser                    => 422,
             Self::DuplicateProof               => 409,
             Self::BulletinBoardCorrupted(_)    => 500,
+            #[cfg(not(target_arch = "wasm32"))]
             Self::Storage(_)                   => 500,
             Self::Serialization(_)             => 500,
             Self::Internal(_)                  => 500,

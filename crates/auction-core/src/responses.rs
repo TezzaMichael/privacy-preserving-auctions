@@ -10,7 +10,7 @@ use crate::{
     user::User,
 };
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RegisterResponse {
     pub user_id: Uuid,
     pub username: String,
@@ -23,7 +23,7 @@ impl From<User> for RegisterResponse {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct LoginResponse {
     pub jwt_token: String,
     pub user_id: Uuid,
@@ -31,7 +31,7 @@ pub struct LoginResponse {
     pub public_key_hex: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct MeResponse {
     pub user_id: Uuid,
     pub username: String,
@@ -45,7 +45,7 @@ impl From<User> for MeResponse {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AuctionResponse {
     pub id: Uuid,
     pub creator_id: Uuid,
@@ -74,20 +74,20 @@ impl From<Auction> for AuctionResponse {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AuctionListResponse {
     pub auctions: Vec<AuctionResponse>,
     pub total: usize,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SubmitBidResponse {
     pub bid_id: Uuid,
     pub bb_entry_hash_hex: String,
     pub bb_sequence: i64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SealedBidResponse {
     pub bid_id: Uuid,
     pub bidder_id: Uuid,
@@ -110,13 +110,13 @@ impl From<SealedBid> for SealedBidResponse {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BidListResponse {
     pub bids: Vec<SealedBidResponse>,
     pub total: usize,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RevealWinnerResponse {
     pub reveal_id: Uuid,
     pub winner_id: Uuid,
@@ -125,7 +125,7 @@ pub struct RevealWinnerResponse {
     pub bb_sequence: Option<i64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct WinnerRevealDetailResponse {
     pub reveal_id: Uuid,
     pub auction_id: Uuid,
@@ -152,7 +152,7 @@ impl From<WinnerRevealRecord> for WinnerRevealDetailResponse {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct LoserProofResponse {
     pub proof_id: Uuid,
     pub bidder_id: Uuid,
@@ -179,13 +179,13 @@ impl From<LoserProofRecord> for LoserProofResponse {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct LoserProofListResponse {
     pub proofs: Vec<LoserProofResponse>,
     pub total: usize,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BulletinBoardResponse {
     pub auction_id: Uuid,
     pub entries: Vec<BulletinBoardEntry>,
@@ -193,7 +193,7 @@ pub struct BulletinBoardResponse {
     pub head_hash_hex: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BulletinBoardEntryResponse {
     pub entry: BulletinBoardEntry,
 }
@@ -205,13 +205,13 @@ pub struct VerifyCommitmentResponse {
     pub value: u64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct VerifyProofResponse {
     pub valid: bool,
     pub error: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct TranscriptVerificationResponse {
     pub auction_id: Uuid,
     pub chain_integrity_valid: bool,
@@ -223,14 +223,14 @@ pub struct TranscriptVerificationResponse {
     pub errors: Vec<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ServerPublicKeyResponse {
     pub public_key_hex: String,
     pub pedersen_g_hex: String,
     pub pedersen_h_hex: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ErrorResponse {
     pub error: String,
     pub code: u16,
