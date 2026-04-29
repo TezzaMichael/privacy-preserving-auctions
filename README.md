@@ -61,6 +61,7 @@ export AR_wasm32_unknown_unknown="/opt/homebrew/opt/llvm/bin/llvm-ar"
 Additionally, the project uses conditional compilation in auction-core to exclude database dependencies (sqlx) when targeting WebAssembly, ensuring a slim and compatible WASM bundle.
 
 ### 📂 Directory Structure
+```text
 .
 ├── crates/
 │   ├── auction-server/   # Backend logic & API
@@ -73,3 +74,4 @@ Additionally, the project uses conditional compilation in auction-core to exclud
 │   └── src/wasm/         # Generated WASM artifacts
 ├── Cargo.toml            # Workspace configuration
 └── README.md
+```
