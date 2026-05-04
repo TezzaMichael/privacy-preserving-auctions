@@ -13,7 +13,10 @@ export interface Auction {
   title: string;
   description: string;
   status: AuctionStatus;
-  reserve_price: number | null;
+  min_bid: number;
+  max_bid: number;
+  bid_step: number;
+  end_time: string;
   bb_create_sequence: number | null;
   created_at: string;
   updated_at: string;

@@ -32,14 +32,25 @@ async fn create_auction(
     Json(req): Json<CreateAuctionRequest>,
 ) -> ApiResult<Json<AuctionResponse>> {
     let auction = state.auction_service
-        .create(user_id, req.title.clone(), req.description, req.reserve_price)
+        .create(
+            user_id, 
+            req.title.clone(), 
+            req.description, 
+            req.min_bid as i64, 
+            req.max_bid.map(|m| m as i64), 
+            req.step as i64, 
+            req.duration_seconds
+        )
         .await?;
 
     let payload = serde_json::to_value(AuctionCreatePayload {
         auction_id: auction.id,
         creator_id: auction.creator_id,
         title: auction.title.clone(),
-        reserve_price: auction.reserve_price,
+        min_bid: req.min_bid,
+        max_bid: req.max_bid,
+        step: req.step,
+        end_time: auction.end_time,
     })?;
     let entry = state.bulletin_board_service
         .append(auction.id, auction_core::bulletin_board::EntryKind::AuctionCreate, payload, &state.server_signer)

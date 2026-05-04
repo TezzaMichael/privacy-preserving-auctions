@@ -45,7 +45,7 @@ fn print_usage() {
     eprintln!("  generate-identity <username> <output.json>");
     eprintln!("  register <identity.json> <password>");
     eprintln!("  login <identity.json> <password> -> token.txt");
-    eprintln!("  create-auction <token> <title> <description>");
+    eprintln!("  create-auction <token> <title> <description> <min_bid> <max_bid> <step> <duration_seconds>");
     eprintln!("  list-auctions");
     eprintln!("  open-auction <token> <auction_id>");
     eprintln!("  close-auction <token> <auction_id>");
@@ -91,8 +91,13 @@ async fn cmd_create_auction(args: &[String], base_url: &str) -> Result<()> {
     let token = args.get(2).context("missing token")?;
     let title = args.get(3).context("missing title")?;
     let description = args.get(4).context("missing description")?;
+    let min_bid: u64 = args.get(5).context("missing min_bid")?.parse()?;
+    let max_bid: Option<u64> = args.get(6).map(|s| s.parse().unwrap_or(0)).filter(|&v| v > 0);
+    let step: u64 = args.get(7).context("missing step")?.parse()?;
+    let duration: i64 = args.get(8).context("missing duration_seconds")?.parse()?;
+
     let client = AuctionClient::new(base_url).with_token(token.clone());
-    let resp = client.create_auction(title, description, None).await?;
+    let resp = client.create_auction(title, description, min_bid, max_bid, step, duration).await?;
     println!("Created auction: {} ({})", resp.title, resp.id);
     Ok(())
 }

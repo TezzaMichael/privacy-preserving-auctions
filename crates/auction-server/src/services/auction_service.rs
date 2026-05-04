@@ -15,12 +15,15 @@ impl AuctionService {
         creator_id: Uuid,
         title: String,
         description: String,
-        reserve_price: Option<i64>,
+        min_bid: i64,
+        max_bid: Option<i64>,
+        bid_step: i64,
+        duration_seconds: i64,
     ) -> Result<Auction, AuctionError> {
-        let auction = Auction::new(creator_id, title, description, reserve_price);
+        let auction = Auction::new(creator_id, title, description, min_bid, max_bid, bid_step, duration_seconds);
         self.repo.insert(&auction).await?;
         Ok(auction)
-    }
+}
 
     pub async fn get(&self, id: Uuid) -> Result<Auction, AuctionError> {
         self.repo.find_by_id(id).await
@@ -31,24 +34,32 @@ impl AuctionService {
     }
 
     pub async fn transition(
-        &self,
-        id: Uuid,
-        requester_id: Uuid,
-        to: AuctionStatus,
-    ) -> Result<Auction, AuctionError> {
-        let auction = self.repo.find_by_id(id).await?;
-        if auction.creator_id != requester_id {
-            return Err(AuctionError::NotCreator);
-        }
-        if !auction.status.can_transition_to(&to) {
-            return Err(AuctionError::InvalidStateTransition {
-                from: auction.status,
-                to,
-            });
-        }
-        self.repo.update_status(id, &to).await?;
-        self.repo.find_by_id(id).await
+    &self,
+    id: Uuid,
+    requester_id: Uuid,
+    to: AuctionStatus,
+) -> Result<Auction, AuctionError> {
+    let auction = self.repo.find_by_id(id).await?;
+
+    if auction.creator_id != requester_id {
+        return Err(AuctionError::NotCreator);
     }
+
+    // Aggiungi il time-lock per impedire la chiusura prematura
+    if to == AuctionStatus::ClaimPhase && chrono::Utc::now() < auction.end_time {
+        return Err(AuctionError::Internal("L'asta non può essere chiusa prima della scadenza".into()));
+    }
+
+    if !auction.status.can_transition_to(&to) {
+        return Err(AuctionError::InvalidStateTransition {
+            from: auction.status,
+            to,
+        });
+    }
+
+    self.repo.update_status(id, &to).await?;
+    self.repo.find_by_id(id).await
+}
 
     pub async fn set_bb_sequence(&self, id: Uuid, seq: i64) -> Result<(), AuctionError> {
         self.repo.update_bb_sequence(id, seq).await

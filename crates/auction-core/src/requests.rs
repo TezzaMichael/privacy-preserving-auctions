@@ -18,7 +18,10 @@ pub struct LoginRequest {
 pub struct CreateAuctionRequest {
     pub title: String,
     pub description: String,
-    pub reserve_price: Option<i64>,
+    pub min_bid: u64,
+    pub max_bid: Option<u64>,
+    pub step: u64,
+    pub duration_seconds: i64, 
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

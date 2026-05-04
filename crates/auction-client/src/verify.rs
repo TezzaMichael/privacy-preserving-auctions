@@ -62,8 +62,16 @@ impl ClientVerifier {
             }
         }).collect();
 
+        let auction = client.get_auction(auction_id).await?; 
+
+        let bb = client.get_bulletin_board(auction_id).await?;
+        let winner_detail = client.get_winner_reveal(auction_id).await.ok();
+
         let transcript = AuctionTranscript {
             auction_id,
+            min_bid: auction.min_bid as u64,                    // <-- AGGIUNTO
+            max_bid: auction.max_bid.map(|m| m as u64),         // <-- AGGIUNTO
+            bid_step: auction.bid_step as u64,
             bulletin_board: bb.entries,
             winner,
             losers,

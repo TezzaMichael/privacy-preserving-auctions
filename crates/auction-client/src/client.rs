@@ -77,12 +77,15 @@ impl AuctionClient {
     }
 
     pub async fn create_auction(
-        &self, title: &str, description: &str, reserve_price: Option<i64>,
+        &self, title: &str, description: &str, min_bid: u64, max_bid: Option<u64>, step: u64, duration_seconds: i64,
     ) -> Result<AuctionResponse, ClientError> {
         self.post("/auctions", &CreateAuctionRequest {
             title: title.into(),
             description: description.into(),
-            reserve_price,
+            min_bid,
+            max_bid,
+            step,
+            duration_seconds,
         }).await
     }
 

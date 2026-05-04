@@ -1,12 +1,16 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use chrono::{DateTime, Utc};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AuctionCreatePayload {
     pub auction_id: Uuid,
     pub creator_id: Uuid,
     pub title: String,
-    pub reserve_price: Option<i64>,
+    pub min_bid: u64,
+    pub max_bid: Option<u64>,
+    pub step: u64,
+    pub end_time: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

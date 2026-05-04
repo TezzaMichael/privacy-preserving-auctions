@@ -52,10 +52,13 @@ pub struct AuctionResponse {
     pub title: String,
     pub description: String,
     pub status: AuctionStatus,
-    pub reserve_price: Option<i64>,
     pub bb_create_sequence: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub min_bid: i64,
+    pub max_bid: Option<i64>,
+    pub bid_step: i64,
+    pub end_time: DateTime<Utc>,
 }
 
 impl From<Auction> for AuctionResponse {
@@ -66,7 +69,10 @@ impl From<Auction> for AuctionResponse {
             title: a.title,
             description: a.description,
             status: a.status,
-            reserve_price: a.reserve_price,
+            min_bid: a.min_bid,
+            max_bid: a.max_bid,
+            bid_step: a.bid_step,
+            end_time: a.end_time,
             bb_create_sequence: a.bb_create_sequence,
             created_at: a.created_at,
             updated_at: a.updated_at,

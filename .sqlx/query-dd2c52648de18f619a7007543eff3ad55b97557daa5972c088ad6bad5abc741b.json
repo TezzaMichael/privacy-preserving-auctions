@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO auctions (id, creator_id, title, description, status, min_bid, max_bid, bid_step, end_time, server_signature_hex, bb_create_sequence, created_at, updated_at)\n            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 13
+    },
+    "nullable": []
+  },
+  "hash": "dd2c52648de18f619a7007543eff3ad55b97557daa5972c088ad6bad5abc741b"
+}

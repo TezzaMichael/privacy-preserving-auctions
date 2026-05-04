@@ -88,7 +88,7 @@ export default function AuctionPage() {
       </div>
       <BulletinBoardPanel entries={entries} onRefresh={load} />
       {showBidModal && (
-        <PlaceBidModal auctionId={id} onClose={() => setShowBidModal(false)} onSuccess={() => { setShowBidModal(false); load(); }} />
+        <PlaceBidModal auction={auction} onClose={() => setShowBidModal(false)} onSuccess={() => { setShowBidModal(false); load(); }} />
       )}
       {showRevealModal && myBid && (
         <RevealModal auctionId={id} myBid={myBid} onClose={() => setShowRevealModal(false)} onSuccess={() => { setShowRevealModal(false); load(); }} />

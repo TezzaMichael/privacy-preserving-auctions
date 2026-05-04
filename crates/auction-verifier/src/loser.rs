@@ -2,6 +2,7 @@ use auction_crypto::{pedersen::PedersenGenerators, schnorr::ProofOfOpening};
 use thiserror::Error;
 use crate::commitment::{verify_proof_commitment_matches, CommitmentError};
 
+
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum LoserVerifyError {
     #[error("Schnorr proof invalid: {0}")]
@@ -14,6 +15,12 @@ pub enum LoserVerifyError {
     ValueMismatch { request: u64, proof: u64 },
     #[error("proof JSON deserialize failed: {0}")]
     DeserializeError(String),
+    #[error("L'offerta rivelata è inferiore al minimo consentito")]
+    BelowMinimum,
+    #[error("L'offerta rivelata è superiore al massimo consentito")]
+    AboveMaximum,
+    #[error("L'offerta rivelata non rispetta i salti (step) stabiliti")]
+    InvalidStep,
 }
 
 pub fn verify_loser_proof(
@@ -22,7 +29,22 @@ pub fn verify_loser_proof(
     proof_json: &str,
     winner_value: u64,
     gens: &PedersenGenerators,
+    min_bid: u64,           // <-- NUOVO PARAMETRO
+    max_bid: Option<u64>,   // <-- NUOVO PARAMETRO
+    bid_step: u64,
 ) -> Result<(), LoserVerifyError> {
+    if claimed_value < min_bid {
+        return Err(LoserVerifyError::BelowMinimum);
+    }
+    if let Some(max) = max_bid {
+        if claimed_value > max {
+            return Err(LoserVerifyError::AboveMaximum);
+        }
+    }
+    if (claimed_value - min_bid) % bid_step != 0 {
+        return Err(LoserVerifyError::InvalidStep);
+    }
+
     let proof: ProofOfOpening = serde_json::from_str(proof_json)
         .map_err(|e| LoserVerifyError::DeserializeError(e.to_string()))?;
     if claimed_value != proof.revealed_value {
@@ -39,10 +61,13 @@ pub fn verify_all_loser_proofs(
     losers: &[(String, u64, String)],
     winner_value: u64,
     gens: &PedersenGenerators,
+    min_bid: u64,           
+    max_bid: Option<u64>,   
+    bid_step: u64,          
 ) -> Vec<(usize, LoserVerifyError)> {
     losers.iter().enumerate()
         .filter_map(|(i, (c, v, p))| {
-            verify_loser_proof(c, *v, p, winner_value, gens).err().map(|e| (i, e))
+            verify_loser_proof(c, *v, p, winner_value, gens, min_bid, max_bid, bid_step).err().map(|e| (i, e))
         })
         .collect()
 }

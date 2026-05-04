@@ -11,6 +11,9 @@ use crate::{
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuctionTranscript {
     pub auction_id: Uuid,
+    pub min_bid: u64,           
+    pub max_bid: Option<u64>,   
+    pub bid_step: u64,
     pub bulletin_board: Vec<BulletinBoardEntry>,
     pub winner: Option<WinnerData>,
     pub losers: Vec<LoserData>,
@@ -70,21 +73,24 @@ pub fn verify_auction_transcript(t: &AuctionTranscript) -> VerificationResult {
         Err(e) => CheckResult::fail(e),
     };
 
+    // Passiamo i parametri dell'asta al winner
     let winner_proof = match &t.winner {
         None => CheckResult::fail("no winner reveal"),
-        Some(w) => match verify_winner_proof(&w.commitment_hex, w.revealed_value, &w.proof_json, gens) {
+        Some(w) => match verify_winner_proof(&w.commitment_hex, w.revealed_value, &w.proof_json, gens, t.min_bid, t.max_bid, t.bid_step) {
             Ok(_) => CheckResult::ok(),
             Err(e) => CheckResult::fail(e),
         },
     };
 
+    // Passiamo i parametri dell'asta ai loser
     let loser_proofs = match &t.winner {
         None => CheckResult::fail("cannot verify losers without winner reveal"),
         Some(w) => {
             let losers: Vec<_> = t.losers.iter()
                 .map(|l| (l.commitment_hex.clone(), l.revealed_value, l.proof_json.clone()))
                 .collect();
-            let errs = verify_all_loser_proofs(&losers, w.revealed_value, gens);
+            
+            let errs = verify_all_loser_proofs(&losers, w.revealed_value, gens, t.min_bid, t.max_bid, t.bid_step);
             if errs.is_empty() {
                 CheckResult::ok()
             } else {

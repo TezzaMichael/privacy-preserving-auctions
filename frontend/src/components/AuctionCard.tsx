@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Users } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import type { Auction } from "@/types";
 import { cn, statusColor, statusLabel, formatDate } from "@/lib/utils";
 
@@ -14,7 +14,7 @@ export default function AuctionCard({ auction }: { auction: Auction }) {
       <p className="text-slate-400 text-sm line-clamp-2 mb-4">{auction.description || "No description"}</p>
       <div className="flex items-center justify-between text-xs text-slate-500">
         <span>{formatDate(auction.created_at)}</span>
-        {auction.reserve_price && <span className="text-slate-400">Reserve: {auction.reserve_price}</span>}
+        <span className="text-slate-400 font-mono">Min: {auction.min_bid}</span>
       </div>
     </Link>
   );

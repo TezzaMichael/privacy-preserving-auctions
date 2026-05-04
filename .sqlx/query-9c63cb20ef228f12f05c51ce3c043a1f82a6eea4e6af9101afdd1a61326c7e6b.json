@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id as \"id!: Uuid\", creator_id as \"creator_id!: Uuid\", title, description,\n               status as \"status!: AuctionStatus\", reserve_price, server_signature_hex,\n               bb_create_sequence, created_at as \"created_at!: _\", updated_at as \"updated_at!: _\"\n               FROM auctions ORDER BY created_at DESC",
+  "query": "SELECT id as \"id!: Uuid\", creator_id as \"creator_id!: Uuid\", title, description,\n           status as \"status!: AuctionStatus\", min_bid, max_bid, bid_step, \n           end_time as \"end_time!: _\", server_signature_hex,\n           bb_create_sequence, created_at as \"created_at!: _\", updated_at as \"updated_at!: _\"\n           FROM auctions WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -29,33 +29,48 @@
         "type_info": "Text"
       },
       {
-        "name": "reserve_price",
+        "name": "min_bid",
         "ordinal": 5,
         "type_info": "Int64"
       },
       {
-        "name": "server_signature_hex",
+        "name": "max_bid",
         "ordinal": 6,
-        "type_info": "Text"
+        "type_info": "Int64"
       },
       {
-        "name": "bb_create_sequence",
+        "name": "bid_step",
         "ordinal": 7,
         "type_info": "Int64"
       },
       {
-        "name": "created_at!: _",
+        "name": "end_time!: _",
         "ordinal": 8,
         "type_info": "Text"
       },
       {
-        "name": "updated_at!: _",
+        "name": "server_signature_hex",
         "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "bb_create_sequence",
+        "ordinal": 10,
+        "type_info": "Int64"
+      },
+      {
+        "name": "created_at!: _",
+        "ordinal": 11,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at!: _",
+        "ordinal": 12,
         "type_info": "Text"
       }
     ],
     "parameters": {
-      "Right": 0
+      "Right": 1
     },
     "nullable": [
       true,
@@ -63,12 +78,15 @@
       false,
       false,
       false,
+      false,
       true,
+      false,
+      false,
       true,
       true,
       false,
       false
     ]
   },
-  "hash": "49c6263e555dfe2effcf44c50ad439e145bcaea71bddbb86e19d5113d21cffad"
+  "hash": "9c63cb20ef228f12f05c51ce3c043a1f82a6eea4e6af9101afdd1a61326c7e6b"
 }

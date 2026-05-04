@@ -11,15 +11,18 @@ pub struct Auction {
     pub title: String,
     pub description: String,
     pub status: AuctionStatus,
-    pub reserve_price: Option<i64>,
     pub server_signature_hex: Option<String>,
     pub bb_create_sequence: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub min_bid: i64,
+    pub max_bid: Option<i64>,
+    pub bid_step: i64,
+    pub end_time: DateTime<Utc>,
 }
 
 impl Auction {
-    pub fn new(creator_id: Uuid, title: String, description: String, reserve_price: Option<i64>) -> Self {
+    pub fn new(creator_id: Uuid, title: String, description: String,  min_bid: i64, max_bid: Option<i64>, bid_step: i64, duration_seconds: i64) -> Self {
         let now = Utc::now();
         Self {
             id: Uuid::new_v4(),
@@ -27,11 +30,14 @@ impl Auction {
             title,
             description,
             status: AuctionStatus::Pending,
-            reserve_price,
             server_signature_hex: None,
             bb_create_sequence: None,
             created_at: now,
             updated_at: now,
+            min_bid,
+            max_bid,
+            bid_step,
+            end_time: now + chrono::Duration::seconds(duration_seconds),
         }
     }
 }

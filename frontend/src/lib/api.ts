@@ -34,8 +34,10 @@ export const api = {
   auctions: {
     list: () => createApi().get<{ auctions: Auction[]; total: number }>("/auctions"),
     get: (id: string) => createApi().get<Auction>(`/auctions/${id}`),
-    create: (token: string, title: string, description: string, reserve_price?: number) =>
-      createApi(token).post<Auction>("/auctions", { title, description, reserve_price }),
+    
+    create: (token: string, title: string, description: string, min_bid: number, max_bid: number | null, step: number, duration_seconds: number) =>
+      createApi(token).post<Auction>("/auctions", { title, description, min_bid, max_bid, step, duration_seconds }),
+      
     open: (token: string, id: string) =>
       createApi(token).post<Auction>(`/auctions/${id}/open`, {}),
     close: (token: string, id: string) =>
