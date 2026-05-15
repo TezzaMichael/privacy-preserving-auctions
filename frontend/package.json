@@ -10,27 +10,28 @@
     "wasm:build": "cd ../crates/auction-verifier && wasm-pack build --target web --out-dir ../../frontend/src/wasm --no-default-features"
   },
   "dependencies": {
+    "@noble/curves": "^2.2.0",
+    "@radix-ui/react-dialog": "^1.0.5",
+    "@radix-ui/react-tabs": "^1.0.4",
+    "axios": "^1.6.8",
+    "clsx": "^2.1.0",
+    "lucide-react": "^0.378.0",
     "next": "14.2.0",
     "react": "^18",
     "react-dom": "^18",
-    "axios": "^1.6.8",
-    "zustand": "^4.5.2",
     "sonner": "^1.4.41",
-    "@radix-ui/react-dialog": "^1.0.5",
-    "@radix-ui/react-tabs": "^1.0.4",
-    "clsx": "^2.1.0",
     "tailwind-merge": "^2.2.2",
-    "lucide-react": "^0.378.0"
+    "zustand": "^4.5.2"
   },
   "devDependencies": {
-    "typescript": "^5",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "tailwindcss": "^3.4.1",
-    "postcss": "^8",
     "autoprefixer": "^10",
     "eslint": "^8",
-    "eslint-config-next": "14.2.0"
+    "eslint-config-next": "14.2.0",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
   }
 }

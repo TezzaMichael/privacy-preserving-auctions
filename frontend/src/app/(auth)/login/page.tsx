@@ -5,6 +5,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
+import { deriveKeypairFromPassword } from "@/lib/crypto";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,9 +17,16 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
+      // 1. Fai il login sul backend
       const r = await api.auth.login(form.username, form.password);
       const { jwt_token, user_id, username, public_key_hex } = r.data;
-      setAuth(jwt_token, { user_id, username, public_key_hex }, "");
+      
+      // 2. RICOSTRUISCI la chiave privata in background usando la password
+      const { secretKeyHex } = await deriveKeypairFromPassword(form.password, form.username);
+      
+      // 3. Inserisci la chiave ricostruita nello store
+      setAuth(jwt_token, { user_id, username, public_key_hex }, secretKeyHex);
+      
       toast.success("Logged in successfully");
       router.push("/dashboard");
     } catch (err: any) {
@@ -42,6 +50,9 @@ export default function LoginPage() {
             <label className="block text-sm text-slate-400 mb-1">Password</label>
             <input className="input" type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required />
           </div>
+          
+          {/* NESSUN CAMPO PER LA CHIAVE PRIVATA QUI! */}
+          
           <button className="btn-primary w-full justify-center" type="submit" disabled={loading}>
             {loading ? "Signing in…" : "Sign In"}
           </button>

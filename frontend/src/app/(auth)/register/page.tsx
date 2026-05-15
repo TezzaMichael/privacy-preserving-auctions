@@ -5,13 +5,9 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
+import { ed25519 } from '@noble/curves/ed25519';
+import { deriveKeypairFromPassword } from "@/lib/crypto";
 
-function generateKeyPair(): { publicKeyHex: string; secretKeyHex: string } {
-  const secret = crypto.getRandomValues(new Uint8Array(32));
-  const secretKeyHex = Array.from(secret).map(b => b.toString(16).padStart(2, "0")).join("");
-  const publicKeyHex = secretKeyHex;
-  return { publicKeyHex, secretKeyHex };
-}
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -27,11 +23,14 @@ export default function RegisterPage() {
     }
     setLoading(true);
     try {
-      const { publicKeyHex, secretKeyHex } = generateKeyPair();
+      const { publicKeyHex, secretKeyHex } = await deriveKeypairFromPassword(form.password, form.username);
+      
       await api.auth.register(form.username, form.password, publicKeyHex);
       const loginResp = await api.auth.login(form.username, form.password);
       const { jwt_token, user_id, username, public_key_hex } = loginResp.data;
+      
       setAuth(jwt_token, { user_id, username, public_key_hex }, secretKeyHex);
+      
       toast.success("Account created successfully");
       router.push("/dashboard");
     } catch (err: any) {

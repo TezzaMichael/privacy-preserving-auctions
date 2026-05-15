@@ -1,4 +1,5 @@
 import type { BidSecret } from "@/types";
+import { ed25519 } from '@noble/curves/ed25519.js';
 
 function randomBytes(n: number): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(n));
@@ -55,10 +56,14 @@ export async function signCommitment(
   commitmentHex: string
 ): Promise<string> {
   const auctionIdBytes = fromHex(auctionId.replace(/-/g, ""));
+  
   const msg = await commitmentMessage(auctionIdBytes, commitmentHex);
-  const key = await importEd25519PrivateKey(privateKeyHex);
-  const sig = await crypto.subtle.sign("Ed25519", key, msg);
-  return toHex(new Uint8Array(sig));
+  
+  const privateKeyBytes = fromHex(privateKeyHex);
+  
+  const signature = ed25519.sign(msg, privateKeyBytes);
+  
+  return toHex(signature);
 }
 
 export function generateBlinding(): string {
@@ -93,4 +98,38 @@ export function listSecretAuctionIds(): string[] {
   return Object.keys(sessionStorage)
     .filter(k => k.startsWith("bid_secret_"))
     .map(k => k.replace("bid_secret_", ""));
+}
+
+export async function deriveKeypairFromPassword(password: string, username: string): Promise<{ publicKeyHex: string, secretKeyHex: string }> {
+  const enc = new TextEncoder();
+  
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(password),
+    { name: "PBKDF2" },
+    false,
+    ["deriveBits"]
+  );
+
+  const salt = enc.encode(`auction_salt_${username.toLowerCase()}`);
+  
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt: salt,
+      iterations: 100000, 
+      hash: "SHA-256"
+    },
+    keyMaterial,
+    256 
+  );
+
+  const privKey = new Uint8Array(derivedBits);
+  
+  const pubKey = ed25519.getPublicKey(privKey);
+
+  return {
+    secretKeyHex: Array.from(privKey).map(b => b.toString(16).padStart(2, "0")).join(""),
+    publicKeyHex: Array.from(pubKey).map(b => b.toString(16).padStart(2, "0")).join("")
+  };
 }

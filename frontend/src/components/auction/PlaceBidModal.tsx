@@ -3,7 +3,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
-import { storeSecret } from "@/lib/crypto";
+import { storeSecret, signCommitment } from "@/lib/crypto";
 import type { Auction } from "@/types";
 import Modal from "@/components/ui/Modal";
 
@@ -14,7 +14,7 @@ interface Props {
 }
 
 export default function PlaceBidModal({ auction, onClose, onSuccess }: Props) {
-  const { token, user } = useAuthStore();
+  const { token, user, secretKeyHex} = useAuthStore();
   const [value, setValue] = useState("");
   const [loading, setLoading] = useState(false);
   
@@ -22,7 +22,10 @@ export default function PlaceBidModal({ auction, onClose, onSuccess }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!token || !user) return;
+    if (!token || !secretKeyHex) {
+      toast.error("Chiave privata non trovata. Assicurati di aver effettuato l'accesso correttamente.");
+      return;
+    }
     
     const bidValue = parseInt(value);
     
@@ -44,20 +47,23 @@ export default function PlaceBidModal({ auction, onClose, onSuccess }: Props) {
     try {
       const blinding = Array.from(crypto.getRandomValues(new Uint8Array(32)))
         .map(b => b.toString(16).padStart(2, "0")).join("");
+      
       const commitInput = new TextEncoder().encode(`${bidValue}:${blinding}:${auctionId}`);
       const hashBuf = await crypto.subtle.digest("SHA-256", commitInput);
       const commitmentHex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, "0")).join("");
       
-      const auctionIdBytes = auctionId.replace(/-/g, "");
-      const msgBytes = new TextEncoder().encode(`auction-bid-commitment-v1:${auctionIdBytes}${commitmentHex}`);
-      const msgHash = await crypto.subtle.digest("SHA-256", msgBytes);
-      const sigHex = Array.from(new Uint8Array(msgHash)).map(b => b.toString(16).padStart(2, "0")).join("");
+      const sigHex = await signCommitment(
+        secretKeyHex, // Usa la variabile corretta dallo store
+        auctionId,
+        commitmentHex
+      );
       
       const secret = { auction_id: auctionId, value: bidValue, blinding_hex: blinding, commitment_hex: commitmentHex };
       storeSecret(secret);
       
       await api.bids.submit(token, auctionId, commitmentHex, sigHex);
-      toast.success("Bid submitted! Save your secret to reveal later.");
+      
+      toast.success("Offerta inviata con successo!");
       onSuccess();
     } catch (err: any) {
       toast.error(err.message);
