@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { loadSecret } from "@/lib/crypto";
+import { createProofOfOpeningWasm } from "@/lib/wasm"; // <-- Aggiunto l'import
 import type { SealedBid, BidSecret } from "@/types";
 import Modal from "@/components/ui/Modal";
 
@@ -25,14 +26,14 @@ export default function RevealModal({ auctionId, myBid, onClose, onSuccess }: Pr
     try {
       const value = secret ? secret.value : parseInt(manualValue);
       const blinding = secret ? secret.blinding_hex : manualBlinding;
-      const proofPlaceholder = JSON.stringify({
-        commitment: myBid.commitment_hex,
-        nonce_commit: myBid.commitment_hex,
-        s_value: blinding.slice(0, 64),
-        s_blinding: blinding.slice(0, 64),
-        revealed_value: value,
-      });
-      await api.proofs.revealWinner(token, auctionId, myBid.bid_id, value, proofPlaceholder);
+      
+      // Generazione del proof crittografico tramite WASM
+      const realProof = await createProofOfOpeningWasm(value, blinding, myBid.commitment_hex);
+      if (!realProof) {
+        throw new Error("Impossibile generare il proof crittografico di apertura tramite WASM.");
+      }
+
+      await api.proofs.revealWinner(token, auctionId, myBid.bid_id, value, realProof);
       toast.success("Winner reveal submitted");
       onSuccess();
     } catch (err: any) {

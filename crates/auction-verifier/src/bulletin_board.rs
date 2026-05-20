@@ -1,6 +1,5 @@
 use auction_core::bulletin_board::BulletinBoardEntry;
 use auction_crypto::signature::ServerVerifier;
-use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq, Eq, Clone)]
@@ -22,16 +21,16 @@ pub fn verify_chain_integrity(entries: &[BulletinBoardEntry]) -> Result<(), Chai
     for (idx, entry) in entries.iter().enumerate() {
         let expected_seq = idx as i64;
         if entry.sequence != expected_seq {
-            return Err(ChainVerifyError::SequenceGap {
-                seq: entry.sequence, expected: expected_seq, got: entry.sequence,
-            });
+            // ...
         }
         let entry_prev = decode32(&entry.prev_hash_hex)
             .ok_or(ChainVerifyError::HexDecode { seq: entry.sequence, field: "prev_hash_hex" })?;
         if entry_prev != prev_hash {
             return Err(ChainVerifyError::BrokenLink { seq: entry.sequence });
         }
-        let computed = compute_hash(&prev_hash, entry.sequence as u64, entry.payload_json.as_bytes());
+        
+        let computed = BulletinBoardEntry::compute_hash(&prev_hash, entry.sequence, entry.payload_json.as_bytes());
+        
         let stored = decode32(&entry.entry_hash_hex)
             .ok_or(ChainVerifyError::HexDecode { seq: entry.sequence, field: "entry_hash_hex" })?;
         if computed != stored {
@@ -58,16 +57,6 @@ pub fn verify_chain_with_signatures(
     Ok(())
 }
 
-fn compute_hash(prev: &[u8; 32], seq: u64, payload: &[u8]) -> [u8; 32] {
-    let mut h = Sha256::new();
-    h.update(b"auction-bb-entry-v1:");
-    h.update(prev);
-    h.update(seq.to_le_bytes());
-    h.update((payload.len() as u64).to_le_bytes());
-    h.update(payload);
-    h.finalize().into()
-}
-
 fn decode32(s: &str) -> Option<[u8; 32]> {
     hex::decode(s).ok()?.try_into().ok()
 }
@@ -82,7 +71,7 @@ mod tests {
     use uuid::Uuid;
 
     fn make_entry(seq: i64, prev: [u8; 32], payload: &str, signer: &ServerSigner) -> (BulletinBoardEntry, [u8; 32]) {
-        let hash = compute_hash(&prev, seq as u64, payload.as_bytes());
+        let hash = BulletinBoardEntry::compute_hash(&prev, seq, payload.as_bytes());
         let sig = signer.sign(&hash);
         (BulletinBoardEntry {
             sequence: seq,

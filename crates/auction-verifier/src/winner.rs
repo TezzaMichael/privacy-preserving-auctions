@@ -69,17 +69,25 @@ mod tests {
         (c.to_hex(), serde_json::to_string(&p).unwrap(), g)
     }
 
-    #[test] fn valid_ok() { let (c,p,g)=make(10_000); assert!(verify_winner_proof(&c,10_000,&p,&g).is_ok()); }
+    #[test] fn valid_ok() { 
+        let (c,p,g)=make(10_000); 
+        // min_bid=0, max_bid=None, bid_step=1
+        assert!(verify_winner_proof(&c,10_000,&p,&g, 0, None, 1).is_ok()); 
+    }
+    
     #[test] fn wrong_claimed_value() {
         let (c,p,g)=make(10_000);
-        assert!(matches!(verify_winner_proof(&c,9_999,&p,&g), Err(WinnerVerifyError::ValueMismatch{..})));
+        assert!(matches!(verify_winner_proof(&c,9_999,&p,&g, 0, None, 1), Err(WinnerVerifyError::ValueMismatch{..})));
     }
+    
     #[test] fn wrong_commitment() {
-        let (c1,_,g)=make(5_000); let (_,p2,_)=make(5_000);
-        assert!(matches!(verify_winner_proof(&c1,5_000,&p2,&g), Err(WinnerVerifyError::CommitmentMismatch(_))));
+        let (c1,_,g)=make(5_000); 
+        let (_,p2,_)=make(5_000);
+        assert!(matches!(verify_winner_proof(&c1,5_000,&p2,&g, 0, None, 1), Err(WinnerVerifyError::CommitmentMismatch(_))));
     }
+    
     #[test] fn bad_json() {
         let g=PedersenGenerators::standard();
-        assert!(matches!(verify_winner_proof("aabb",100,"notjson",&g), Err(WinnerVerifyError::DeserializeError(_))));
+        assert!(matches!(verify_winner_proof("aabb",100,"notjson",&g, 0, None, 1), Err(WinnerVerifyError::DeserializeError(_))));
     }
 }

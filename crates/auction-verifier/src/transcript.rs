@@ -127,13 +127,11 @@ mod tests {
 
     fn bb_entry(seq: i64, prev: [u8; 32], payload: &str, signer: &ServerSigner) -> (BulletinBoardEntry, [u8; 32]) {
         let pb = payload.as_bytes();
-        let mut h = Sha256::new();
-        h.update(b"auction-bb-entry-v1:");
-        h.update(prev);
-        h.update((seq as u64).to_le_bytes());
-        h.update((pb.len() as u64).to_le_bytes());
-        h.update(pb);
-        let hash: [u8; 32] = h.finalize().into();
+        let pb = payload.as_bytes();
+        
+        // <-- MODIFICA QUI: Usa la funzione unificata
+        let hash = BulletinBoardEntry::compute_hash(&prev, seq, pb);
+        
         (BulletinBoardEntry {
             sequence: seq,
             auction_id: Uuid::new_v4(),
@@ -163,6 +161,9 @@ mod tests {
 
         AuctionTranscript {
             auction_id: Uuid::new_v4(),
+            min_bid: 0,                 
+            max_bid: None,              
+            bid_step: 1,
             bulletin_board: vec![e0, e1],
             winner: Some(WinnerData {
                 bidder_id: Uuid::new_v4(), bid_id: Uuid::new_v4(),

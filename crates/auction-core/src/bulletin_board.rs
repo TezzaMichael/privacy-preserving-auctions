@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use sha2::{Digest, Sha256};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(target_arch = "wasm32"), derive(sqlx::Type))]
@@ -38,6 +39,16 @@ pub struct BulletinBoardEntry {
 impl BulletinBoardEntry {
     pub fn prev_hash_bytes(&self) -> Option<[u8; 32]> { hex_to_32(&self.prev_hash_hex) }
     pub fn entry_hash_bytes(&self) -> Option<[u8; 32]> { hex_to_32(&self.entry_hash_hex) }
+
+    pub fn compute_hash(prev_hash: &[u8; 32], sequence: i64, payload_bytes: &[u8]) -> [u8; 32] {
+        let mut h = Sha256::new();
+        h.update(b"auction-bb-entry-v1:");
+        h.update(prev_hash);
+        h.update((sequence as u64).to_le_bytes());
+        h.update((payload_bytes.len() as u64).to_le_bytes());
+        h.update(payload_bytes);
+        h.finalize().into()
+    }
 }
 
 fn hex_to_32(s: &str) -> Option<[u8; 32]> {

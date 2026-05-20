@@ -70,4 +70,6 @@ auction.db
 .vscode/
 .idea/
 *.swp
-*.swo
+*.swoalice.json
+.env
+*.db

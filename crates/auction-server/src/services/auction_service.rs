@@ -33,6 +33,22 @@ impl AuctionService {
         self.repo.list_all().await
     }
 
+    pub async fn system_transition(
+        &self,
+        id: Uuid,
+        to: AuctionStatus,
+    ) -> Result<Auction, AuctionError> {
+        let auction = self.repo.find_by_id(id).await?;
+        if !auction.status.can_transition_to(&to) {
+            return Err(AuctionError::InvalidStateTransition {
+                from: auction.status,
+                to,
+            });
+        }
+        self.repo.update_status(id, &to).await?;
+        self.repo.find_by_id(id).await
+    }
+
     pub async fn transition(
     &self,
     id: Uuid,

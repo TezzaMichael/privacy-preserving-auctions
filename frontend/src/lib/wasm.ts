@@ -58,3 +58,27 @@ export async function verifyProofWasm(proofJson: string): Promise<boolean> {
 }
 
 export const wasmAvailable = async (): Promise<boolean> => !!(await loadWasm());
+
+export async function createCommitmentWasm(value: number, blindingHex: string): Promise<string | null> {
+  const mod = await loadWasm();
+  if (!mod) return null;
+  try {
+    return mod.create_commitment(BigInt(value), blindingHex);
+  } catch {
+    return null;
+  }
+}
+
+export async function createProofOfOpeningWasm(
+  value: number,
+  blindingHex: string,
+  commitmentHex: string
+): Promise<string | null> {
+  const mod = await loadWasm();
+  if (!mod) return null;
+  try {
+    return mod.create_proof_of_opening(BigInt(value), blindingHex, commitmentHex);
+  } catch {
+    return null;
+  }
+}

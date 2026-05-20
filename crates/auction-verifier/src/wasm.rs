@@ -45,3 +45,31 @@ pub fn verify_chain(entries_json: &str) -> Result<JsValue, JsValue> {
     };
     serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
 }
+
+#[wasm_bindgen]
+pub fn create_commitment(value: u64, blinding_hex: &str) -> Result<String, JsValue> {
+    use auction_crypto::pedersen::{BlindingFactor, PedersenCommitment, PedersenGenerators};
+    let gens = PedersenGenerators::standard();
+    let r = BlindingFactor::from_hex(blinding_hex)
+        .ok_or_else(|| JsValue::from_str("Blinding factor hex non valido"))?;
+    let commitment = PedersenCommitment::commit(value, &r, &gens);
+    Ok(commitment.to_hex())
+}
+
+#[wasm_bindgen]
+pub fn create_proof_of_opening(value: u64, blinding_hex: &str, commitment_hex: &str) -> Result<String, JsValue> {
+    use auction_crypto::{
+        pedersen::{BlindingFactor, PedersenCommitment, PedersenGenerators},
+        schnorr::ProofOfOpening,
+    };
+    let gens = PedersenGenerators::standard();
+    let r = BlindingFactor::from_hex(blinding_hex)
+        .ok_or_else(|| JsValue::from_str("Blinding factor hex non valido"))?;
+    let commitment = PedersenCommitment::from_hex(commitment_hex)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    
+    // Genera il vero proof di Schnorr usando OsRng
+    let proof = ProofOfOpening::prove(value, &r, &commitment, &gens, &mut rand::rngs::OsRng);
+    serde_json::to_string(&proof)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+}

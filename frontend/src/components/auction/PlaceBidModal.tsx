@@ -4,11 +4,12 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { storeSecret, signCommitment } from "@/lib/crypto";
+import { createCommitmentWasm } from "@/lib/wasm"; 
 import type { Auction } from "@/types";
 import Modal from "@/components/ui/Modal";
 
 interface Props { 
-  auction: Auction; // <-- Adesso riceve l'oggetto intero
+  auction: Auction;
   onClose: () => void; 
   onSuccess: () => void; 
 }
@@ -29,7 +30,6 @@ export default function PlaceBidModal({ auction, onClose, onSuccess }: Props) {
     
     const bidValue = parseInt(value);
     
-    // --- VALIDAZIONE LATO CLIENT ---
     if (isNaN(bidValue) || bidValue < auction.min_bid) {
       toast.error(`L'offerta minima è ${auction.min_bid}`);
       return;
@@ -48,12 +48,15 @@ export default function PlaceBidModal({ auction, onClose, onSuccess }: Props) {
       const blinding = Array.from(crypto.getRandomValues(new Uint8Array(32)))
         .map(b => b.toString(16).padStart(2, "0")).join("");
       
-      const commitInput = new TextEncoder().encode(`${bidValue}:${blinding}:${auctionId}`);
-      const hashBuf = await crypto.subtle.digest("SHA-256", commitInput);
-      const commitmentHex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, "0")).join("");
+      const commitmentHex = await createCommitmentWasm(bidValue, blinding);
+      
+      if (!commitmentHex) {
+        throw new Error("Impossibile generare il commitment crittografico tramite WASM.");
+      }
+     
       
       const sigHex = await signCommitment(
-        secretKeyHex, // Usa la variabile corretta dallo store
+        secretKeyHex,
         auctionId,
         commitmentHex
       );

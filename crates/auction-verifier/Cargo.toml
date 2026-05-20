@@ -28,3 +28,7 @@ getrandom                = { version = "0.3", features = ["wasm_js"] }
 
 [features]
 default = ["console_error_panic_hook"]
+
+[dev-dependencies]
+rand = "0.8"
+chrono = "0.4"

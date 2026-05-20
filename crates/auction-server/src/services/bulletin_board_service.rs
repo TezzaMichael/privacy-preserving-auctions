@@ -4,7 +4,6 @@ use uuid::Uuid;
 use auction_core::{bulletin_board::{BulletinBoardEntry, EntryKind}, errors::AuctionError};
 use auction_crypto::signature::ServerSigner;
 use crate::storage::bulletin_board_repo::BulletinBoardRepo;
-use sha2::{Digest, Sha256};
 
 pub struct BulletinBoardService {
     repo: BulletinBoardRepo,
@@ -32,13 +31,7 @@ impl BulletinBoardService {
         let payload_json = serde_json::to_string(&payload)?;
         let payload_bytes = payload_json.as_bytes();
 
-        let mut h = Sha256::new();
-        h.update(b"auction-bb-entry-v1:");
-        h.update(prev_arr);
-        h.update((sequence as u64).to_le_bytes());
-        h.update((payload_bytes.len() as u64).to_le_bytes());
-        h.update(payload_bytes);
-        let entry_hash: [u8; 32] = h.finalize().into();
+        let entry_hash = BulletinBoardEntry::compute_hash(&prev_arr, sequence, payload_bytes);
         let entry_hash_hex = hex::encode(entry_hash);
 
         let sig = signer.sign(&entry_hash);

@@ -1,4 +1,4 @@
-use auction_crypto::{pedersen::{PedersenCommitment, PedersenGenerators}, schnorr::ProofOfOpening};
+use auction_crypto::{pedersen::PedersenCommitment, schnorr::ProofOfOpening};
 use subtle::ConstantTimeEq;
 use thiserror::Error;
 

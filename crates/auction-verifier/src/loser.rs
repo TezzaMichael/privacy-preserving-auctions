@@ -86,29 +86,38 @@ mod tests {
         (c.to_hex(), serde_json::to_string(&p).unwrap(), g)
     }
 
-    #[test] fn valid_ok() { let (c,p,g)=make(400); assert!(verify_loser_proof(&c,400,&p,500,&g).is_ok()); }
+    #[test] fn valid_ok() { 
+        let (c,p,g)=make(400); 
+        // Aggiunti parametri: min_bid=100, max_bid=None, bid_step=100
+        assert!(verify_loser_proof(&c,400,&p,500,&g, 100, None, 100).is_ok()); 
+    }
+    
     #[test] fn equal_winner_fails() {
         let (c,p,g)=make(500);
-        assert!(matches!(verify_loser_proof(&c,500,&p,500,&g), Err(LoserVerifyError::NotALoser{..})));
+        assert!(matches!(verify_loser_proof(&c,500,&p,500,&g, 100, None, 100), Err(LoserVerifyError::NotALoser{..})));
     }
+    
     #[test] fn higher_than_winner_fails() {
         let (c,p,g)=make(600);
-        assert!(matches!(verify_loser_proof(&c,600,&p,500,&g), Err(LoserVerifyError::NotALoser{..})));
+        assert!(matches!(verify_loser_proof(&c,600,&p,500,&g, 100, None, 100), Err(LoserVerifyError::NotALoser{..})));
     }
+    
     #[test] fn value_mismatch_fails() {
         let (c,p,g)=make(400);
-        assert!(matches!(verify_loser_proof(&c,300,&p,500,&g), Err(LoserVerifyError::ValueMismatch{..})));
+        assert!(matches!(verify_loser_proof(&c,300,&p,500,&g, 100, None, 100), Err(LoserVerifyError::ValueMismatch{..})));
     }
+    
     #[test] fn verify_all_empty() {
         let g=PedersenGenerators::standard();
-        assert!(verify_all_loser_proofs(&[],1000,&g).is_empty());
+        assert!(verify_all_loser_proofs(&[],1000,&g, 0, None, 1).is_empty());
     }
+    
     #[test] fn verify_all_one_fail() {
         let g=PedersenGenerators::standard();
         let (c1,p1,_)=make(100);
         let (c2,p2,_)=make(900);
-        let errs=verify_all_loser_proofs(&[(c1,100,p1),(c2,900,p2)],500,&g);
+        let errs=verify_all_loser_proofs(&[(c1,100,p1),(c2,900,p2)],500,&g, 100, None, 100);
         assert_eq!(errs.len(),1);
-        assert_eq!(errs[0].0,1);
+        assert_eq!(errs[0].0,1); // il secondo (indice 1) fallisce perché 900 > 500
     }
 }

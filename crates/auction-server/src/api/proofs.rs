@@ -121,6 +121,32 @@ async fn submit_loser_proof(
         .await?;
     state.proof_service.update_loser_bb_sequence(record.id, entry.sequence).await?;
 
+    if let Ok(all_bids) = state.bid_service.list_by_auction(auction_id).await {
+        if let Ok(all_loser_proofs) = state.proof_service.get_loser_proofs(auction_id).await {
+            
+            let needed_proofs = all_bids.len().saturating_sub(1);
+            if all_loser_proofs.len() >= needed_proofs {
+                
+                // Usiamo AuctionStatus::Closed invece di Finalized
+                if state.auction_service.system_transition(auction_id, AuctionStatus::Closed).await.is_ok() {
+                    let final_payload = serde_json::json!({ 
+                        "auction_id": auction_id, 
+                        // Usiamo winner_id invece di bidder_id
+                        "verified_winner_id": winner.winner_id,
+                        "total_bids": all_bids.len()
+                    });
+                    
+                    let _ = state.bulletin_board_service.append(
+                        auction_id,
+                        auction_core::bulletin_board::EntryKind::AuctionFinalize,
+                        final_payload,
+                        &state.server_signer
+                    ).await;
+                }
+            }
+        }
+    }
+
     Ok(Json(LoserProofResponse::from(record)))
 }
 

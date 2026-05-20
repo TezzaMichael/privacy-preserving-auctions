@@ -19,6 +19,9 @@ export const useAuthStore = create<AuthState>()(
       setAuth: (token, user, secretKeyHex) => set({ token, user, secretKeyHex }),
       clearAuth: () => set({ token: null, user: null, secretKeyHex: null }),
     }),
-    { name: "auction-auth" }
+    { 
+      name: "auction-auth",
+      partialize: (state) => ({ token: state.token, user: state.user }),
+    }
   )
 );
