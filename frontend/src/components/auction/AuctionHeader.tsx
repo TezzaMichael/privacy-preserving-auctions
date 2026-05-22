@@ -9,12 +9,15 @@ interface Props {
   myBid?: SealedBid;
   onTransition: (a: "open" | "close" | "finalize") => void;
   onBid: () => void;
-  onReveal: () => void;
-  onLoserProof: () => void;
+  onReveal?: () => void;
+  onLoserProof?: () => void;
+  onVerifyClick?: () => void; 
 }
 
-export default function AuctionHeader({ auction, isCreator, myBid, onTransition, onBid, onReveal, onLoserProof }: Props) {
+// 1. CORREZIONE: aggiunto onVerifyClick qui sotto
+export default function AuctionHeader({ auction, isCreator, myBid, onTransition, onBid, onReveal, onLoserProof, onVerifyClick }: Props) {
   const isAuctionEnded = new Date() >= new Date(auction.end_time);
+  const canVerify = auction.status !== "Pending" && auction.status !== "BiddingOpen";
 
   return (
     <div className="card">
@@ -37,33 +40,46 @@ export default function AuctionHeader({ auction, isCreator, myBid, onTransition,
         </div>
         
         <div className="flex flex-wrap gap-2 items-center">
-          <Link href={`/auctions/${auction.id}/verify`} className="btn-secondary">
-            <Eye size={14} /> Verify
-          </Link>
+          {!isCreator && (
+            canVerify ? (
+              <Link href={`/auctions/${auction.id}/verify`} className="btn-secondary">
+                <Eye size={14} /> Verify
+              </Link>
+            ) : (
+              <button 
+                className="btn-secondary opacity-50 cursor-not-allowed" 
+                onClick={onVerifyClick}
+              >
+                <Eye size={14} /> Verify (Locked)
+              </button>
+            )
+          )}
+          
+          {/* 2. CORREZIONE: Ho rimosso il Link "Verify" duplicato che si trovava qui */}
           
           {isCreator && auction.status === "Pending" && (
             <button className="btn-primary" onClick={() => onTransition("open")}><Play size={14} /> Open Bidding</button>
           )}
           
           {/* TIME-LOCK visivo applicato qui */}
-          {isCreator && auction.status === "BiddingOpen" && (
-            isAuctionEnded ? (
-              <button className="btn-secondary" onClick={() => onTransition("close")}><Square size={14} /> Close Bidding</button>
-            ) : (
-              <span className="text-xs text-slate-500 italic px-2">Cannot close until end time</span>
-            )
+          {isCreator && auction.status === "BiddingOpen" && !isAuctionEnded && (
+              <span className="text-xs text-slate-500 italic px-2">Auto-closes at end time</span>
           )}
           
           {isCreator && auction.status === "ProofPhase" && (
             <button className="btn-primary" onClick={() => onTransition("finalize")}><CheckCheck size={14} /> Finalize</button>
           )}
+          
           {!isCreator && auction.status === "BiddingOpen" && !myBid && !isAuctionEnded && (
             <button className="btn-primary" onClick={onBid}>Place Bid</button>
           )}
-          {!isCreator && auction.status === "ClaimPhase" && myBid && (
+          
+          {/* I bottoni ora appaiono SOLO se page.tsx decide di passarli */}
+          {onReveal && (
             <button className="btn-primary" onClick={onReveal}><FileCheck size={14} /> Reveal Bid</button>
           )}
-          {!isCreator && auction.status === "ProofPhase" && myBid && (
+          
+          {onLoserProof && (
             <button className="btn-secondary" onClick={onLoserProof}><FileCheck size={14} /> Submit Proof</button>
           )}
         </div>

@@ -34,6 +34,8 @@ async fn main() -> anyhow::Result<()> {
 
     let state = Arc::new(AppState::new(pool, &cfg).await?);
 
+    // In privacy-preserving-auctions/crates/auction-server/src/main.rs
+
     // --- TASK IN BACKGROUND PER LA CHIUSURA AUTOMATICA DELLE ASTE ---
     let bg_state = state.clone();
     tokio::spawn(async move {
@@ -44,7 +46,8 @@ async fn main() -> anyhow::Result<()> {
             if let Ok(auctions) = bg_state.auction_service.list().await {
                 let now = chrono::Utc::now();
                 for auc in auctions {
-                    // Se l'asta è aperta e il tempo è scaduto
+                    
+                    // 1. Timeout di fine asta: Passaggio da BiddingOpen a ClaimPhase
                     if auc.status == auction_core::enums::AuctionStatus::BiddingOpen && auc.end_time <= now {
                         tracing::info!("Auto-closing auction {}", auc.id);
                         
@@ -63,6 +66,40 @@ async fn main() -> anyhow::Result<()> {
                             ).await;
                         }
                     }
+                    // --- NUOVO BLOCCO: Da ClaimPhase a ProofPhase ---
+                    // Impostato a 5 minuti dopo la fine dell'asta per comodità di demo.
+                    // Puoi cambiare `num_minutes() >= 5` in `num_hours() >= 24` per la produzione.
+                    else if auc.status == auction_core::enums::AuctionStatus::ClaimPhase 
+                         && now.signed_duration_since(auc.end_time).num_minutes() >= 5
+                    {
+                        tracing::info!("ClaimPhase timer ended. Moving auction {} to ProofPhase", auc.id);
+                        
+                        // Forza il passaggio alla generazione delle prove
+                        let _ = bg_state.auction_service.system_transition(auc.id, auction_core::enums::AuctionStatus::ProofPhase).await;
+                    }
+                    // ------------------------------------------------
+                    // 2. Timeout della Proof Phase: Passaggio da ProofPhase a Closed
+                    else if auc.status == auction_core::enums::AuctionStatus::ProofPhase 
+                         && now.signed_duration_since(auc.end_time).num_hours() >= 24 
+                    {
+                        tracing::info!("ProofPhase timeout reached for auction {}", auc.id);
+                        
+                        // Forza la chiusura dell'asta
+                        if bg_state.auction_service.system_transition(auc.id, auction_core::enums::AuctionStatus::Closed).await.is_ok() {
+                            let payload = serde_json::json!({ 
+                                "auction_id": auc.id, 
+                                "reason": "proof_phase_timeout",
+                                "note": "Timeout raggiunto: non tutti i perdenti hanno inviato le prove."
+                            });
+                            let _ = bg_state.bulletin_board_service.append(
+                                auc.id,
+                                auction_core::bulletin_board::EntryKind::AuctionFinalize,
+                                payload,
+                                &bg_state.server_signer
+                            ).await;
+                        }
+                    }
+                    
                 }
             }
         }

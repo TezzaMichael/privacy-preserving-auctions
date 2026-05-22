@@ -15,16 +15,20 @@ interface Props {
 }
 
 export default function PlaceBidModal({ auction, onClose, onSuccess }: Props) {
-  const { token, user, secretKeyHex} = useAuthStore();
+  const { token, user, secretKeyHex } = useAuthStore();
   const [value, setValue] = useState("");
   const [loading, setLoading] = useState(false);
   
   const auctionId = auction.id;
+  
+  // Variabile per verificare rapidamente la presenza della chiave privata
+  const hasCryptoKey = !!secretKeyHex;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    
     if (!token || !secretKeyHex) {
-      toast.error("Chiave privata non trovata. Assicurati di aver effettuato l'accesso correttamente.");
+      toast.error("Chiave privata non trovata in memoria. Effettua il logout e reinserisci la password per ripristinare la sessione crittografica.");
       return;
     }
     
@@ -54,7 +58,6 @@ export default function PlaceBidModal({ auction, onClose, onSuccess }: Props) {
         throw new Error("Impossibile generare il commitment crittografico tramite WASM.");
       }
      
-      
       const sigHex = await signCommitment(
         secretKeyHex,
         auctionId,
@@ -77,21 +80,48 @@ export default function PlaceBidModal({ auction, onClose, onSuccess }: Props) {
 
   return (
     <Modal title="Place Sealed Bid" onClose={onClose}>
-      <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 mb-4 text-sm text-yellow-300">
-        Your bid value is sealed with a Pedersen commitment. The server only sees the commitment — not your value.
-      </div>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm text-slate-400 mb-1">Bid Value</label>
-          <input className="input" type="number" min={auction.min_bid} step={auction.bid_step} max={auction.max_bid || undefined} value={value} onChange={e => setValue(e.target.value)} required placeholder="Enter your bid amount" />
-        </div>
-        <div className="flex gap-3">
-          <button type="submit" className="btn-primary flex-1 justify-center" disabled={loading}>
-            {loading ? "Submitting..." : "Submit Sealed Bid"}
+      {!hasCryptoKey ? (
+        <div className="bg-yellow-500/10 border-l-4 border-yellow-500 p-4 mb-4 text-sm text-yellow-300 rounded">
+          <p className="font-bold text-yellow-400 mb-1">Sessione Crittografica Scaduta</p>
+          <p className="mb-2">
+            Hai ricaricato la pagina. Per motivi di sicurezza, la tua chiave privata temporanea è stata rimossa dalla memoria del browser.
+          </p>
+          <p className="font-semibold">
+            Per favore, chiudi questa finestra, esegui il Logout e accedi di nuovo per ripristinare le funzioni di firma.
+          </p>
+          <button type="button" className="btn-secondary w-full mt-4" onClick={onClose}>
+            Chiudi
           </button>
-          <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
         </div>
-      </form>
+      ) : (
+        <>
+          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 mb-4 text-sm text-yellow-300">
+            Your bid value is sealed with a Pedersen commitment. The server only sees the commitment — not your value.
+          </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">Bid Value</label>
+              <input 
+                className="input" 
+                type="number" 
+                min={auction.min_bid} 
+                step={auction.bid_step} 
+                max={auction.max_bid || undefined} 
+                value={value} 
+                onChange={e => setValue(e.target.value)} 
+                required 
+                placeholder="Enter your bid amount" 
+              />
+            </div>
+            <div className="flex gap-3">
+              <button type="submit" className="btn-primary flex-1 justify-center" disabled={loading}>
+                {loading ? "Submitting..." : "Submit Sealed Bid"}
+              </button>
+              <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            </div>
+          </form>
+        </>
+      )}
     </Modal>
   );
 }

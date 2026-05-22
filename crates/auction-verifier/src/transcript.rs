@@ -83,9 +83,28 @@ pub fn verify_auction_transcript(t: &AuctionTranscript) -> VerificationResult {
     };
 
     // Passiamo i parametri dell'asta ai loser
+    // Passiamo i parametri dell'asta ai loser
     let loser_proofs = match &t.winner {
         None => CheckResult::fail("cannot verify losers without winner reveal"),
         Some(w) => {
+            // CONTA QUANTI PARTECIPANTI CI SONO
+            let total_bids = t.bulletin_board.iter()
+                .filter(|e| matches!(e.entry_kind, auction_core::bulletin_board::EntryKind::SealedBid))
+                .count();
+
+            // SE MANCANO DELLE PROVE (es. B non ha mandato la loser proof)
+            if total_bids > 0 && t.losers.len() != total_bids - 1 {
+                 return VerificationResult {
+                    auction_id: t.auction_id,
+                    chain_integrity,
+                    server_signatures,
+                    winner_proof,
+                    // FA FALLIRE LA VERIFICA SE MANCANO PROVE
+                    loser_proofs: CheckResult::fail(format!("Missing loser proofs. Expected {}, found {}", total_bids - 1, t.losers.len())),
+                    fully_valid: false,
+                };
+            }
+
             let losers: Vec<_> = t.losers.iter()
                 .map(|l| (l.commitment_hex.clone(), l.revealed_value, l.proof_json.clone()))
                 .collect();

@@ -51,6 +51,28 @@ export default function AuctionPage() {
 
   useEffect(() => { load(); }, [id]);
 
+  useEffect(() => {
+    if (!auction || auction.status !== "BiddingOpen") return;
+
+    const end = new Date(auction.end_time).getTime();
+    const now = Date.now();
+    
+    if (now >= end) {
+      // It should already be closed, trigger a reload
+      load();
+    } else {
+      // Set a timeout to reload exactly when the auction ends
+      const timeRemaining = end - now;
+      const timeout = setTimeout(() => {
+        load();
+        toast.info("L'asta è terminata. Passaggio alla fase di verifica in corso...");
+      }, timeRemaining);
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [auction]);
+
+
   async function transition(action: "open" | "close" | "finalize") {
     if (!token) return;
     try {
@@ -71,6 +93,9 @@ export default function AuctionPage() {
   const isCreator = user?.user_id === auction.creator_id;
   const myBid = bids.find(b => b.bidder_id === user?.user_id);
 
+  // Controllo se l'utente corrente ha già sottomesso la sua prova da perdente
+  const iAmLoserAndHaveProven = losers.some(l => l.bidder_id === user?.user_id);
+
   return (
     <div className="space-y-6">
       <AuctionHeader
@@ -79,14 +104,28 @@ export default function AuctionPage() {
         myBid={myBid}
         onTransition={transition}
         onBid={() => setShowBidModal(true)}
-        onReveal={() => setShowRevealModal(true)}
-        onLoserProof={() => setShowLoserModal(true)}
+        onReveal={(auction.status === "ClaimPhase" && !isCreator && myBid) 
+          ? () => setShowRevealModal(true) 
+          : undefined}
+        onLoserProof={(auction.status === "ProofPhase" && winner?.winner_id !== user?.user_id && !iAmLoserAndHaveProven) ? () => setShowLoserModal(true) : undefined}
+        // Pass a handler for the verify button click
+        onVerifyClick={() => {
+          if (auction.status === "BiddingOpen") {
+            const end = new Date(auction.end_time).getTime();
+            const now = Date.now();
+            const diff = Math.max(0, end - now);
+            const minutes = Math.floor(diff / 60000);
+            toast.info(`La verifica sarà disponibile tra circa ${minutes} minuti, al termine dell'asta.`);
+          }
+        }}
       />
+      
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <BidsPanel bids={bids} currentUserId={user?.user_id} />
         <ProofsPanel winner={winner} losers={losers} bids={bids} />
       </div>
       <BulletinBoardPanel entries={entries} onRefresh={load} />
+      
       {showBidModal && (
         <PlaceBidModal auction={auction} onClose={() => setShowBidModal(false)} onSuccess={() => { setShowBidModal(false); load(); }} />
       )}

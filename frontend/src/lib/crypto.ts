@@ -58,9 +58,7 @@ export async function signCommitment(
   const auctionIdBytes = fromHex(auctionId.replace(/-/g, ""));
   
   const msg = await commitmentMessage(auctionIdBytes, commitmentHex);
-  
   const privateKeyBytes = fromHex(privateKeyHex);
-  
   const signature = ed25519.sign(msg, privateKeyBytes);
   
   return toHex(signature);
@@ -68,20 +66,6 @@ export async function signCommitment(
 
 export function generateBlinding(): string {
   return toHex(randomBytes(32));
-}
-
-export async function pedersen_commit_js(
-  value: bigint,
-  blindingHex: string,
-  G_hex: string,
-  H_hex: string
-): Promise<string> {
-  const blinding = fromHex(blindingHex);
-  const valueBytes = new Uint8Array(8);
-  const dv = new DataView(valueBytes.buffer);
-  dv.setBigUint64(0, value, true);
-  const hash = await sha256(new Uint8Array([...valueBytes, ...blinding, ...fromHex(G_hex), ...fromHex(H_hex)]));
-  return toHex(hash);
 }
 
 export function storeSecret(secret: BidSecret): void {
@@ -100,6 +84,16 @@ export function listSecretAuctionIds(): string[] {
     .map(k => k.replace("bid_secret_", ""));
 }
 
+/**
+ * TRADE-OFF SICUREZZA vs USABILITÀ (Nota per la presentazione):
+ * In questo progetto, la chiave Ed25519 viene derivata deterministicamente
+ * da (password, username) usando PBKDF2-SHA256. 
+ * Questo permette un'ottima UX per la demo (l'utente non deve gestire chiavi esportate),
+ * ma è crittograficamente debole: non essendoci entropia aggiuntiva, se la password è debole
+ * la chiave può essere ricostruita tramite brute-force.
+ * In un sistema reale di produzione si utilizzerebbe una chiave randomica 
+ * gestita tramite seed phrase, un wallet esterno o meccanismi di key escrow.
+ */
 export async function deriveKeypairFromPassword(password: string, username: string): Promise<{ publicKeyHex: string, secretKeyHex: string }> {
   const enc = new TextEncoder();
   
@@ -125,7 +119,6 @@ export async function deriveKeypairFromPassword(password: string, username: stri
   );
 
   const privKey = new Uint8Array(derivedBits);
-  
   const pubKey = ed25519.getPublicKey(privKey);
 
   return {

@@ -20,6 +20,25 @@ impl AuctionService {
         bid_step: i64,
         duration_seconds: i64,
     ) -> Result<Auction, AuctionError> {
+        
+        if bid_step <= 0 {
+            return Err(AuctionError::Internal("Il bid_step deve essere rigorosamente maggiore di zero.".into()));
+        }
+
+        // 2. Validazione di coerenza se esiste un max_bid
+        if let Some(max) = max_bid {
+            if min_bid > max {
+                return Err(AuctionError::Internal("Il min_bid non può essere superiore al max_bid.".into()));
+            }
+            if bid_step > max {
+                return Err(AuctionError::Internal("Il bid_step non può essere superiore al max_bid.".into()));
+            }
+            // Controllo opzionale ma consigliato: il salto non dovrebbe essere più grande del range giocabile
+            if bid_step > (max - min_bid) && min_bid != max {
+                return Err(AuctionError::Internal("Il bid_step è troppo grande rispetto al range tra min_bid e max_bid.".into()));
+            }
+        }
+
         let auction = Auction::new(creator_id, title, description, min_bid, max_bid, bid_step, duration_seconds);
         self.repo.insert(&auction).await?;
         Ok(auction)

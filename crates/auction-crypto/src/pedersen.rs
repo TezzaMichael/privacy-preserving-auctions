@@ -100,7 +100,7 @@ impl BlindingFactor {
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self { Self(Scalar::random(rng)) }
 
     pub fn from_bytes(bytes: &[u8; 32]) -> Option<Self> {
-        Scalar::from_canonical_bytes(*bytes).into_option().map(Self)
+        Some(Self(Scalar::from_bytes_mod_order(*bytes)))
     }
 
     pub fn to_bytes(&self) -> [u8; 32] { self.0.to_bytes() }

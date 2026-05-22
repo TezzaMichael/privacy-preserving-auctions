@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { api } from "@/lib/api";
-import type { BBEntry, LoserProof, WinnerReveal, SealedBid, VerificationResult, ServerPublicKey } from "@/types";
+import type { BBEntry, LoserProof, WinnerReveal, SealedBid, VerificationResult, ServerPublicKey, Auction } from "@/types";
 import { verifyTranscriptWasm, wasmAvailable } from "@/lib/wasm";
 import VerificationPanel from "@/components/verify/VerificationPanel";
 import TranscriptViewer from "@/components/verify/TranscriptViewer";
@@ -10,6 +10,8 @@ import { toast } from "sonner";
 
 export default function VerifyPage() {
   const { id } = useParams<{ id: string }>();
+  
+  const [auction, setAuction] = useState<Auction | null>(null);
   const [entries, setEntries] = useState<BBEntry[]>([]);
   const [bids, setBids] = useState<SealedBid[]>([]);
   const [winner, setWinner] = useState<WinnerReveal | null>(null);
@@ -23,9 +25,13 @@ export default function VerifyPage() {
     wasmAvailable().then(setHasWasm);
     async function load() {
       try {
-        const [bbR, bR, skR] = await Promise.all([
-          api.board.get(id), api.bids.list(id), api.server.publicKey(),
+        const [aucR, bbR, bR, skR] = await Promise.all([
+          api.auctions.get(id),
+          api.board.get(id), 
+          api.bids.list(id), 
+          api.server.publicKey(),
         ]);
+        setAuction(aucR.data);
         setEntries(bbR.data.entries);
         setBids(bR.data.bids);
         setServerKey(skR.data);
@@ -37,11 +43,17 @@ export default function VerifyPage() {
   }, [id]);
 
   async function runVerification() {
-    if (!serverKey) return;
+    if (!serverKey || !auction) {
+      toast.error("Dati in caricamento...");
+      return;
+    }
     setLoading(true);
     try {
       const transcript = {
         auction_id: id,
+        min_bid: auction.min_bid,
+        max_bid: auction.max_bid,
+        bid_step: auction.bid_step,
         bulletin_board: entries,
         winner: winner ? {
           bidder_id: winner.winner_id,
@@ -57,16 +69,29 @@ export default function VerifyPage() {
           revealed_value: l.revealed_value,
           proof_json: l.proof_json,
         })),
+        // Passiamo l'oggetto esattamente come si aspetta la firma crittografica
         server_verifier: { verifying_key: serverKey.public_key_hex },
         pedersen_generators: { g: serverKey.pedersen_g_hex, h: serverKey.pedersen_h_hex },
       };
-      const r = await verifyTranscriptWasm(JSON.stringify(transcript));
-      if (r) {
-        setResult(r);
-        toast.success(r.fully_valid ? "Auction fully verified!" : "Verification completed with issues");
-      } else {
-        toast.error("WASM verifier unavailable — build with wasm-pack");
+
+      const transcriptJson = JSON.stringify(transcript);
+      console.log("📤 JSON inviato a Rust:", transcript);
+
+      // Carichiamo il WASM scavalcando wasm.ts per vedere l'errore grezzo
+      const mod = await import("@/wasm/auction_verifier.js");
+      await mod.default();
+      
+      try {
+        const r = mod.verify_transcript(transcriptJson);
+        setResult(r as VerificationResult);
+        toast.success(r.fully_valid ? "Asta completamente verificata!" : "La verifica ha riscontrato anomalie");
+      } catch (rustError) {
+        console.error("🚨 ERRORE DI VALIDAZIONE RUST:", rustError);
+        toast.error("Il payload JSON è stato rifiutato da Rust. Controlla la console.");
       }
+
+    } catch (err: any) {
+      console.error("Errore generale:", err);
     } finally {
       setLoading(false);
     }

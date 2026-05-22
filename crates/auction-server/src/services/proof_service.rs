@@ -42,6 +42,43 @@ impl ProofService {
         Ok(record)
     }
 
+    // --- NUOVA FUNZIONE PER IL SORPASSO ASINCRONO ---
+    pub async fn override_winner_reveal(
+        &self,
+        _old_record_id: Uuid,
+        auction_id: Uuid,
+        winner_id: Uuid,
+        bid_id: Uuid,
+        revealed_value: u64,
+        proof_json: String,
+        stored_commitment_hex: &str,
+        gens: &PedersenGenerators,
+    ) -> Result<WinnerRevealRecord, AuctionError> {
+        // 1. Controlli crittografici (identici al submit_winner_reveal)
+        let proof: ProofOfOpening = serde_json::from_str(&proof_json)?;
+        if proof.revealed_value != revealed_value {
+            return Err(AuctionError::InvalidProof);
+        }
+        let stored = auction_crypto::pedersen::PedersenCommitment::from_hex(stored_commitment_hex)
+            .map_err(|_| AuctionError::InvalidCommitment)?;
+        use subtle::ConstantTimeEq;
+        if !bool::from(proof.commitment.compress().as_bytes().ct_eq(&stored.to_bytes())) {
+            return Err(AuctionError::InvalidProof);
+        }
+        proof.verify(gens).map_err(|_| AuctionError::InvalidProof)?;
+
+        // 2. Cancelliamo il vincitore provvisorio precedente
+        self.repo.delete_winner_reveal(auction_id).await?;
+        
+        // 3. Inseriamo il nuovo vincitore provvisorio
+        let record = WinnerRevealRecord::new(
+            auction_id, winner_id, bid_id, revealed_value as i64, proof_json,
+        );
+        self.repo.insert_winner_reveal(&record).await?;
+
+        Ok(record)
+    }
+
     pub async fn submit_loser_proof(
         &self,
         auction_id: Uuid,

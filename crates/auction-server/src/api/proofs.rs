@@ -40,15 +40,34 @@ async fn reveal_winner(
         return Err(AuctionError::NotCreator.into());
     }
 
-    let record = state.proof_service.submit_winner_reveal(
-        auction_id,
-        user_id,
-        bid.id,
-        req.revealed_value,
-        req.proof_json.clone(),
-        &bid.commitment_hex,
-        &state.pedersen_generators,
-    ).await?;
+    let current_winner_opt = state.proof_service.get_winner_reveal(auction_id).await?;
+    
+    let record = if let Some(current_winner) = current_winner_opt {
+        if req.revealed_value <= current_winner.revealed_value as u64 {
+             return Err(AuctionError::Internal("Un'offerta più alta è già stata rivelata come vincitrice provvisoria.".into()).into());
+        }
+        
+        state.proof_service.override_winner_reveal(
+            current_winner.id,
+            auction_id,
+            user_id,
+            bid.id,
+            req.revealed_value,
+            req.proof_json.clone(),
+            &bid.commitment_hex,
+            &state.pedersen_generators,
+        ).await?
+    } else {
+        state.proof_service.submit_winner_reveal(
+            auction_id,
+            user_id,
+            bid.id,
+            req.revealed_value,
+            req.proof_json.clone(),
+            &bid.commitment_hex,
+            &state.pedersen_generators,
+        ).await?
+    };
 
     let payload = serde_json::to_value(WinnerRevealPayload {
         reveal_id: record.id,
@@ -58,11 +77,12 @@ async fn reveal_winner(
         revealed_value: record.revealed_value,
         proof_json: req.proof_json,
     })?;
+    
     let entry = state.bulletin_board_service
         .append(auction_id, auction_core::bulletin_board::EntryKind::WinnerReveal, payload, &state.server_signer)
         .await?;
+        
     state.proof_service.update_winner_bb_sequence(record.id, entry.sequence).await?;
-    state.auction_service.transition(auction_id, user_id, AuctionStatus::ProofPhase).await.ok();
 
     Ok(Json(RevealWinnerResponse {
         reveal_id: record.id,
