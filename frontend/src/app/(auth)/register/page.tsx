@@ -5,7 +5,6 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
-import { ed25519 } from '@noble/curves/ed25519';
 import { deriveKeypairFromPassword } from "@/lib/crypto";
 
 

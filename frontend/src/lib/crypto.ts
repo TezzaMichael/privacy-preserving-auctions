@@ -16,7 +16,7 @@ function fromHex(hex: string): Uint8Array {
 }
 
 async function sha256(data: Uint8Array): Promise<Uint8Array> {
-  const buf = await crypto.subtle.digest("SHA-256", data);
+  const buf = await crypto.subtle.digest("SHA-256", data as BufferSource);
   return new Uint8Array(buf);
 }
 
@@ -47,7 +47,7 @@ async function commitmentMessage(auctionIdBytes: Uint8Array, commitmentHex: stri
 
 export async function importEd25519PrivateKey(secretHex: string): Promise<CryptoKey> {
   const raw = fromHex(secretHex);
-  return crypto.subtle.importKey("raw", raw, { name: "Ed25519" }, false, ["sign"]);
+  return crypto.subtle.importKey("raw", raw as BufferSource, { name: "Ed25519" }, false, ["sign"]);
 }
 
 export async function signCommitment(
