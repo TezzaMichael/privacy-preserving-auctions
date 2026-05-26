@@ -19,7 +19,7 @@ pub struct CreateAuctionRequest {
     pub title: String,
     pub description: String,
     pub min_bid: u64,
-    pub max_bid: Option<u64>,
+    pub max_bid: u64,
     pub step: u64,
     pub duration_seconds: i64, 
 }

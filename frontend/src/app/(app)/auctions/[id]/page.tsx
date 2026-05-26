@@ -1,16 +1,18 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { Auction, SealedBid, WinnerReveal, LoserProof, BBEntry } from "@/types";
 import { useAuthStore } from "@/store/auth";
+import { loadSecret } from "@/lib/crypto";
+import { createProofOfOpeningWasm } from "@/lib/wasm";
+
 import AuctionHeader from "@/components/auction/AuctionHeader";
 import BidsPanel from "@/components/auction/BidsPanel";
 import BulletinBoardPanel from "@/components/auction/BulletinBoardPanel";
 import ProofsPanel from "@/components/auction/ProofsPanel";
 import PlaceBidModal from "@/components/auction/PlaceBidModal";
-import RevealModal from "@/components/auction/RevealModal";
 import LoserProofModal from "@/components/auction/LoserProofModal";
 
 export default function AuctionPage() {
@@ -22,16 +24,23 @@ export default function AuctionPage() {
   const [losers, setLosers] = useState<LoserProof[]>([]);
   const [entries, setEntries] = useState<BBEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  
   const [showBidModal, setShowBidModal] = useState(false);
-  const [showRevealModal, setShowRevealModal] = useState(false);
   const [showLoserModal, setShowLoserModal] = useState(false);
+
+  // Stati del Radar
+  const [currentPollingPrice, setCurrentPollingPrice] = useState<number | null>(null);
+  const [countdownRemaining, setCountdownRemaining] = useState<number | null>(null);
+  const [pollingFailed, setPollingFailed] = useState(false);
+  const autoRevealTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Stato per mostrare a schermo l'offerta dell'utente
+  const [mySecretValue, setMySecretValue] = useState<number | null>(null);
 
   async function load() {
     try {
       const [aR, bR, bbR] = await Promise.all([
-        api.auctions.get(id),
-        api.bids.list(id),
-        api.board.get(id),
+        api.auctions.get(id), api.bids.list(id), api.board.get(id),
       ]);
       setAuction(aR.data);
       setBids(bR.data.bids);
@@ -42,58 +51,138 @@ export default function AuctionPage() {
       if (["ProofPhase", "Closed"].includes(aR.data.status)) {
         try { const lR = await api.proofs.listLosers(id); setLosers(lR.data.proofs); } catch {}
       }
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err: any) { toast.error(err.message); } finally { setLoading(false); }
   }
 
-  useEffect(() => { load(); }, [id]);
-
-  useEffect(() => {
-    if (!auction || auction.status !== "BiddingOpen") return;
-
-    const end = new Date(auction.end_time).getTime();
-    const now = Date.now();
-    
-    if (now >= end) {
-      // It should already be closed, trigger a reload
-      load();
-    } else {
-      // Set a timeout to reload exactly when the auction ends
-      const timeRemaining = end - now;
-      const timeout = setTimeout(() => {
-        load();
-        toast.info("L'asta è terminata. Passaggio alla fase di verifica in corso...");
-      }, timeRemaining);
-      
-      return () => clearTimeout(timeout);
+  useEffect(() => { 
+    load();
+    const secret = loadSecret(id);
+    if (secret) {
+      setMySecretValue(secret.value);
     }
-  }, [auction]);
+  }, [id]);
 
+  // SINCRONIZZAZIONE SILENZIOSA
+  useEffect(() => {
+    if (!auction || auction.status === "Closed") return;
+    const interval = setInterval(() => {
+      api.auctions.get(id).then(aR => {
+        if (aR.data.status !== auction.status) {
+          load();
+        } else if (aR.data.status === "ClaimPhase" || aR.data.status === "ProofPhase") {
+          api.proofs.getWinner(id).then(wR => { if (wR.data) setWinner(wR.data); }).catch(() => {});
+          if (aR.data.status === "ProofPhase") {
+            api.proofs.listLosers(id).then(lR => setLosers(lR.data.proofs)).catch(() => {});
+          }
+        }
+      }).catch(() => {});
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [auction?.status, id]);
+
+  // EFFETTO RADAR CON WARM-UP DI 2 MINUTI
+  useEffect(() => {
+    if (!auction || auction.status !== "ClaimPhase" || !auction.max_bid || winner) return;
+    
+    const maxBid = auction.max_bid;
+    const bidStep = auction.bid_step;
+    const limit = auction.min_bid || 0;
+    const secondsPerStep = 10;
+    const warmUpMs = 120 * 1000;
+    const start = new Date(auction.end_time).getTime();
+
+    const updatePrice = () => {
+      const now = Date.now();
+      const elapsedMs = now - start;
+
+      if (elapsedMs < warmUpMs) {
+        const remainingSecs = Math.ceil((warmUpMs - elapsedMs) / 1000);
+        setCountdownRemaining(remainingSecs > 0 ? remainingSecs : 0);
+        setCurrentPollingPrice(maxBid);
+      } else {
+        setCountdownRemaining(null);
+        const elapsedSecsAfterWarmup = Math.floor((elapsedMs - warmUpMs) / 1000);
+        const steps = Math.floor(elapsedSecsAfterWarmup / secondsPerStep);
+        let current = maxBid - (steps * bidStep);
+        
+        if (current <= limit) {
+          setCurrentPollingPrice(limit);
+          setPollingFailed(true);
+          // Invio chiusura forzata se il creatore sta osservando
+          if (user?.user_id === auction.creator_id) {
+             api.auctions.finalize(token!, id).then(() => load()).catch(() => {});
+          }
+        } else {
+          setCurrentPollingPrice(current);
+        }
+      }
+    };
+
+    updatePrice(); 
+    const interval = setInterval(updatePrice, 1000);
+    return () => clearInterval(interval);
+  }, [auction?.status, winner, id]);
+
+  // AUTOMAZIONE INVISIBILE CALIBRATA
+  const myBid = bids.find(b => b.bidder_id === user?.user_id);
+  useEffect(() => {
+    if (!auction || auction.status !== "ClaimPhase" || !myBid || !token || winner) return;
+    
+    const storedBidData = loadSecret(id); 
+    if (storedBidData) {
+        try {
+            const myValue = storedBidData.value;
+            const maxBid = auction.max_bid || 0;
+            const bidStep = auction.bid_step;
+            const secondsPerStep = 10;
+            const warmUpMs = 120 * 1000;
+            const claimStartTime = new Date(auction.end_time).getTime();
+            const now = Date.now();
+            
+            const stepsToMyBid = (maxBid - myValue) / bidStep;
+            const targetTimeMs = claimStartTime + warmUpMs + (stepsToMyBid * secondsPerStep * 1000);
+            const msUntilMyTurn = targetTimeMs - now;
+
+            if (autoRevealTimerRef.current) clearTimeout(autoRevealTimerRef.current);
+
+            const executeAutoReveal = async () => {
+                if (winner) return;
+                try {
+                    toast.loading(`Submitting claim for ${myValue} ₿...`, { id: "reveal-toast" });
+                    const realProof = await createProofOfOpeningWasm(myValue, storedBidData.blinding_hex, myBid.commitment_hex);
+                    if (!realProof) throw new Error("WASM Generation Failed");
+
+                    await api.proofs.revealWinner(token, id, myBid.bid_id, myValue, realProof);
+                    toast.success("Bid claimed successfully!", { id: "reveal-toast" });
+                    load(); 
+                } catch (err) {
+                    toast.dismiss("reveal-toast");
+                }
+            };
+
+            if (msUntilMyTurn > 0) {
+                autoRevealTimerRef.current = setTimeout(executeAutoReveal, msUntilMyTurn);
+            } else if (now >= claimStartTime + warmUpMs) {
+                executeAutoReveal();
+            }
+        } catch (e) { console.error(e); }
+    }
+    return () => { if (autoRevealTimerRef.current) clearTimeout(autoRevealTimerRef.current); };
+  }, [auction?.status, myBid, winner, id, token]);
 
   async function transition(action: "open" | "close" | "finalize") {
     if (!token) return;
     try {
-      const r = action === "open" ? await api.auctions.open(token, id)
-        : action === "close" ? await api.auctions.close(token, id)
-        : await api.auctions.finalize(token, id);
+      const r = action === "open" ? await api.auctions.open(token, id) : await api.auctions.close(token, id);
       setAuction(r.data);
-      toast.success(`Auction ${action}ed`);
       load();
-    } catch (err: any) {
-      toast.error(err.message);
-    }
+    } catch (err: any) { toast.error(err.message); }
   }
 
   if (loading) return <div className="animate-pulse space-y-4"><div className="card h-32" /><div className="card h-64" /></div>;
   if (!auction) return <div className="text-center py-24 text-slate-500">Auction not found</div>;
 
-  const isCreator = user?.user_id === auction.creator_id;
-  const myBid = bids.find(b => b.bidder_id === user?.user_id);
-
-  // Controllo se l'utente corrente ha già sottomesso la sua prova da perdente
+  const isCreator = user?.user_id === auction?.creator_id;
   const iAmLoserAndHaveProven = losers.some(l => l.bidder_id === user?.user_id);
 
   return (
@@ -102,39 +191,84 @@ export default function AuctionPage() {
         auction={auction}
         isCreator={isCreator}
         myBid={myBid}
+        hasWinner={!!winner}
         onTransition={transition}
         onBid={() => setShowBidModal(true)}
-        onReveal={(auction.status === "ClaimPhase" && !isCreator && myBid) 
-          ? () => setShowRevealModal(true) 
-          : undefined}
-        onLoserProof={(auction.status === "ProofPhase" && winner?.winner_id !== user?.user_id && !iAmLoserAndHaveProven) ? () => setShowLoserModal(true) : undefined}
-        // Pass a handler for the verify button click
-        onVerifyClick={() => {
-          if (auction.status === "BiddingOpen") {
-            const end = new Date(auction.end_time).getTime();
-            const now = Date.now();
-            const diff = Math.max(0, end - now);
-            const minutes = Math.floor(diff / 60000);
-            toast.info(`La verifica sarà disponibile tra circa ${minutes} minuti, al termine dell'asta.`);
-          }
-        }}
+        onLoserProof={(
+          auction.status === "ProofPhase" && 
+          !isCreator && 
+          myBid && 
+          winner?.winner_id !== user?.user_id && 
+          !iAmLoserAndHaveProven
+        ) ? () => setShowLoserModal(true) : undefined}
       />
       
+      {/* Visualizzazione dell'offerta personale per l'utente loggato */}
+      {mySecretValue !== null && myBid && (
+        <div className="bg-slate-800 border border-blue-500/30 text-blue-300 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
+          <span>Your sealed bid value is saved securely in your browser.</span>
+          <span className="font-mono font-bold text-lg">{mySecretValue} ₿</span>
+        </div>
+      )}
+
+      {/* BANNER NESSUN VINCITORE (Asta chiusa senza claim) */}
+      {auction.status === "Closed" && !winner && (
+        <div className="border rounded-xl p-8 text-center shadow-lg bg-slate-900 border-red-500/30 shadow-red-900/20">
+          <h2 className="text-xl font-medium text-red-400 uppercase tracking-widest mb-2">Auction Closed</h2>
+          <div className="text-4xl font-bold text-white mb-2">No Winner</div>
+          <p className="text-slate-500 text-sm">No valid bids were claimed during the polling phase.</p>
+        </div>
+      )}
+      
+      {/* SCHERMO RADAR - MOSTRATO SOLO IN CLAIM PHASE E SOLO SE NON C'È ANCORA UN VINCITORE */}
+      {auction.status === "ClaimPhase" && !winner && (
+        <div className={`border rounded-xl p-8 text-center shadow-lg relative overflow-hidden transition-all duration-500 ${
+          countdownRemaining !== null ? 'bg-slate-900/60 border-amber-500/30 shadow-amber-900/10' :
+          pollingFailed ? 'bg-red-950/20 border-red-500/30 shadow-red-900/20' :
+          'bg-slate-900 border-blue-500/30 shadow-blue-900/20'
+        }`}>
+          {countdownRemaining !== null ? (
+            <>
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-50"></div>
+              <h2 className="text-xl font-medium text-amber-400 uppercase tracking-widest mb-2 flex items-center justify-center gap-2 animate-pulse">
+                Polling Preparation
+              </h2>
+              <div className="text-5xl font-mono font-bold text-white tracking-tight my-4">
+                Starts in: <span className="text-amber-400">{countdownRemaining}s</span>
+              </div>
+              <p className="text-xs text-slate-500 bg-surface border border-surface-border inline-block px-4 py-1 rounded-full">
+                Starting price is locked at <strong>{auction.max_bid} ₿</strong>.
+              </p>
+            </>
+          ) : pollingFailed ? (
+            <>
+              <h2 className="text-xl font-medium text-red-400 uppercase tracking-widest mb-2">Polling Ended</h2>
+              <div className="text-4xl font-bold text-white mb-4">No Winner</div>
+            </>
+          ) : (
+            <>
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50 animate-pulse"></div>
+              <h2 className="text-xl font-medium text-slate-400 uppercase tracking-widest mb-2 flex items-center justify-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping"></span>
+                Active Polling
+              </h2>
+              <div className="text-6xl font-mono font-bold text-white tracking-tight flex justify-center items-baseline gap-2">
+                <span className="text-blue-500 text-4xl">₿</span> 
+                {currentPollingPrice !== null ? currentPollingPrice : "---"}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <BidsPanel bids={bids} currentUserId={user?.user_id} />
         <ProofsPanel winner={winner} losers={losers} bids={bids} />
       </div>
       <BulletinBoardPanel entries={entries} onRefresh={load} />
       
-      {showBidModal && (
-        <PlaceBidModal auction={auction} onClose={() => setShowBidModal(false)} onSuccess={() => { setShowBidModal(false); load(); }} />
-      )}
-      {showRevealModal && myBid && (
-        <RevealModal auctionId={id} myBid={myBid} onClose={() => setShowRevealModal(false)} onSuccess={() => { setShowRevealModal(false); load(); }} />
-      )}
-      {showLoserModal && myBid && (
-        <LoserProofModal auctionId={id} myBid={myBid} winnerValue={winner?.revealed_value ?? 0} onClose={() => setShowLoserModal(false)} onSuccess={() => { setShowLoserModal(false); load(); }} />
-      )}
+      {showBidModal && <PlaceBidModal auction={auction} onClose={() => setShowBidModal(false)} onSuccess={() => { setShowBidModal(false); load(); }} />}
+      {showLoserModal && myBid && <LoserProofModal auctionId={id} myBid={myBid} winnerValue={winner?.revealed_value ?? 0} onClose={() => setShowLoserModal(false)} onSuccess={() => { setShowLoserModal(false); load(); }} />}
     </div>
   );
 }

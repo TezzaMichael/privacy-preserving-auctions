@@ -1,5 +1,6 @@
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Play, Square, CheckCheck, Eye, FileCheck } from "lucide-react";
+import { Play, Eye, FileCheck, Clock } from "lucide-react";
 import type { Auction, SealedBid } from "@/types";
 import { cn, statusColor, statusLabel, formatDate } from "@/lib/utils";
 
@@ -12,12 +13,48 @@ interface Props {
   onReveal?: () => void;
   onLoserProof?: () => void;
   onVerifyClick?: () => void; 
+  hasWinner?: boolean;
 }
 
-// 1. CORREZIONE: aggiunto onVerifyClick qui sotto
-export default function AuctionHeader({ auction, isCreator, myBid, onTransition, onBid, onReveal, onLoserProof, onVerifyClick }: Props) {
+export default function AuctionHeader({ 
+  auction, 
+  isCreator, 
+  myBid, 
+  onTransition, 
+  onBid, 
+  onLoserProof, 
+  hasWinner 
+}: Props) {
   const isAuctionEnded = new Date() >= new Date(auction.end_time);
-  const canVerify = auction.status !== "Pending" && auction.status !== "BiddingOpen";
+  const canVerify = auction.status === "ProofPhase" || auction.status === "Closed";
+
+  const [timeRemainingStr, setTimeRemainingStr] = useState<string>("");
+
+  useEffect(() => {
+    const updateCountdown = () => {
+      const now = Date.now();
+      const endTimeMs = new Date(auction.end_time).getTime();
+
+      // Manteniamo il cronometro SOLO durante la fase di sottomissione delle offerte
+      if (auction.status === "BiddingOpen") {
+        const diff = endTimeMs - now;
+        if (diff <= 0) {
+          setTimeRemainingStr("Scadenza in corso...");
+        } else {
+          const mins = Math.floor(diff / 60000);
+          const secs = Math.floor((diff % 60000) / 1000);
+          setTimeRemainingStr(`Offerte: ${mins}m ${secs}s`);
+        }
+      } else {
+        // In qualsiasi altra fase (inclusa la ClaimPhase), il timer dell'header viene azzerato
+        setTimeRemainingStr(""); 
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [auction]);
 
   return (
     <div className="card">
@@ -40,43 +77,28 @@ export default function AuctionHeader({ auction, isCreator, myBid, onTransition,
         </div>
         
         <div className="flex flex-wrap gap-2 items-center">
-          {!isCreator && (
-            canVerify ? (
-              <Link href={`/auctions/${auction.id}/verify`} className="btn-secondary">
-                <Eye size={14} /> Verify
-              </Link>
-            ) : (
-              <button 
-                className="btn-secondary opacity-50 cursor-not-allowed" 
-                onClick={onVerifyClick}
-              >
-                <Eye size={14} /> Verify (Locked)
-              </button>
-            )
-          )}
           
-          {/* 2. CORREZIONE: Ho rimosso il Link "Verify" duplicato che si trovava qui */}
+          {/* Cronometro visualizzato solo durante la fase BiddingOpen */}
+          {timeRemainingStr && (
+            <div className="text-xs font-mono bg-slate-800/80 border border-slate-700 px-3 py-1.5 rounded-lg text-amber-400 font-semibold flex items-center gap-1.5 animate-pulse">
+              <Clock size={12} className="text-amber-500" />
+              {timeRemainingStr}
+            </div>
+          )}
+
+          {/* Il tasto Verify compare solo quando l'asta è pronta per l'audit pubblico */}
+          {canVerify && (
+            <Link href={`/auctions/${auction.id}/verify`} className="btn-secondary">
+              <Eye size={14} /> Verify Publicly
+            </Link>
+          )}
           
           {isCreator && auction.status === "Pending" && (
             <button className="btn-primary" onClick={() => onTransition("open")}><Play size={14} /> Open Bidding</button>
           )}
           
-          {/* TIME-LOCK visivo applicato qui */}
-          {isCreator && auction.status === "BiddingOpen" && !isAuctionEnded && (
-              <span className="text-xs text-slate-500 italic px-2">Auto-closes at end time</span>
-          )}
-          
-          {isCreator && auction.status === "ProofPhase" && (
-            <button className="btn-primary" onClick={() => onTransition("finalize")}><CheckCheck size={14} /> Finalize</button>
-          )}
-          
           {!isCreator && auction.status === "BiddingOpen" && !myBid && !isAuctionEnded && (
             <button className="btn-primary" onClick={onBid}>Place Bid</button>
-          )}
-          
-          {/* I bottoni ora appaiono SOLO se page.tsx decide di passarli */}
-          {onReveal && (
-            <button className="btn-primary" onClick={onReveal}><FileCheck size={14} /> Reveal Bid</button>
           )}
           
           {onLoserProof && (

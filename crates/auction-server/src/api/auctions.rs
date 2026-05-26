@@ -37,7 +37,7 @@ async fn create_auction(
             req.title.clone(), 
             req.description, 
             req.min_bid as i64, 
-            req.max_bid.map(|m| m as i64), 
+            req.max_bid as i64, 
             req.step as i64, 
             req.duration_seconds
         )
@@ -48,7 +48,7 @@ async fn create_auction(
         creator_id: auction.creator_id,
         title: auction.title.clone(),
         min_bid: req.min_bid,
-        max_bid: req.max_bid,
+        max_bid: Some(req.max_bid),
         step: req.step,
         end_time: auction.end_time,
     })?;

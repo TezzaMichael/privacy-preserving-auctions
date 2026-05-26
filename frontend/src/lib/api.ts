@@ -3,7 +3,7 @@ import type {
   Auction, SealedBid, BBEntry, WinnerReveal, LoserProof, ServerPublicKey, User,
 } from "@/types";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL;
+const BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8080";
 
 export function createApi(token?: string): AxiosInstance {
   const instance = axios.create({ baseURL: BASE });

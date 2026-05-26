@@ -92,7 +92,7 @@ async fn cmd_create_auction(args: &[String], base_url: &str) -> Result<()> {
     let title = args.get(3).context("missing title")?;
     let description = args.get(4).context("missing description")?;
     let min_bid: u64 = args.get(5).context("missing min_bid")?.parse()?;
-    let max_bid: Option<u64> = args.get(6).map(|s| s.parse().unwrap_or(0)).filter(|&v| v > 0);
+    let max_bid: u64 = args.get(6).context("missing max_bid")?.parse()?;
     let step: u64 = args.get(7).context("missing step")?.parse()?;
     let duration: i64 = args.get(8).context("missing duration_seconds")?.parse()?;
 

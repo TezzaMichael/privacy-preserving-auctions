@@ -16,7 +16,7 @@ impl AuctionService {
         title: String,
         description: String,
         min_bid: i64,
-        max_bid: Option<i64>,
+        max_bid: i64, // <-- ORA È OBBLIGATORIO (i64 puro)
         bid_step: i64,
         duration_seconds: i64,
     ) -> Result<Auction, AuctionError> {
@@ -25,24 +25,28 @@ impl AuctionService {
             return Err(AuctionError::Internal("Il bid_step deve essere rigorosamente maggiore di zero.".into()));
         }
 
-        // 2. Validazione di coerenza se esiste un max_bid
-        if let Some(max) = max_bid {
-            if min_bid > max {
-                return Err(AuctionError::Internal("Il min_bid non può essere superiore al max_bid.".into()));
-            }
-            if bid_step > max {
-                return Err(AuctionError::Internal("Il bid_step non può essere superiore al max_bid.".into()));
-            }
-            // Controllo opzionale ma consigliato: il salto non dovrebbe essere più grande del range giocabile
-            if bid_step > (max - min_bid) && min_bid != max {
-                return Err(AuctionError::Internal("Il bid_step è troppo grande rispetto al range tra min_bid e max_bid.".into()));
-            }
+        // Validazione di coerenza diretta (senza Option)
+        if min_bid > max_bid {
+            return Err(AuctionError::Internal("Il min_bid non può essere superiore al max_bid.".into()));
+        }
+        if bid_step > max_bid {
+            return Err(AuctionError::Internal("Il bid_step non può essere superiore al max_bid.".into()));
+        }
+        // Controllo opzionale ma consigliato: il salto non dovrebbe essere più grande del range giocabile
+        if bid_step > (max_bid - min_bid) && min_bid != max_bid {
+            return Err(AuctionError::Internal("Il bid_step è troppo grande rispetto al range tra min_bid e max_bid.".into()));
         }
 
-        let auction = Auction::new(creator_id, title, description, min_bid, max_bid, bid_step, duration_seconds);
+        // NOTA: Se la tua struct in `auction_core` usa ancora Option<i64> per il database,
+        // avvolgiamo max_bid in Some(). Se hai cambiato anche lì in i64 puro, togli Some().
+        let mut auction = Auction::new(creator_id, title, description, min_bid, Some(max_bid), bid_step, duration_seconds);
+        
+        // AUTO-AVVIO: Sovrascriviamo lo stato iniziale (solitamente Pending) per farla partire subito
+        auction.status = AuctionStatus::BiddingOpen;
+
         self.repo.insert(&auction).await?;
         Ok(auction)
-}
+    }
 
     pub async fn get(&self, id: Uuid) -> Result<Auction, AuctionError> {
         self.repo.find_by_id(id).await

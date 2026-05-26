@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use sqlx::SqlitePool;
 use auction_crypto::{
     pedersen::PedersenGenerators,

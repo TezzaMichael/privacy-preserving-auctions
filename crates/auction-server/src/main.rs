@@ -47,49 +47,44 @@ async fn main() -> anyhow::Result<()> {
                 let now = chrono::Utc::now();
                 for auc in auctions {
                     
-                    // 1. Timeout di fine asta: Passaggio da BiddingOpen a ClaimPhase
+                    // 1. Timeout di fine asta: Gestione intelligente in base al numero di partecipanti
                     if auc.status == auction_core::enums::AuctionStatus::BiddingOpen && auc.end_time <= now {
-                        tracing::info!("Auto-closing auction {}", auc.id);
+                        tracing::info!("Checking bids for expired auction {}", auc.id);
                         
-                        // Passa alla fase di Claim
-                        if bg_state.auction_service.system_transition(auc.id, auction_core::enums::AuctionStatus::ClaimPhase).await.is_ok() {
-                            // Registra la chiusura sulla Bulletin Board
-                            let payload = serde_json::json!({ 
-                                "auction_id": auc.id, 
-                                "reason": "deadline_reached" 
-                            });
-                            let _ = bg_state.bulletin_board_service.append(
-                                auc.id,
-                                auction_core::bulletin_board::EntryKind::AuctionClose,
-                                payload,
-                                &bg_state.server_signer
-                            ).await;
-                        }
-                    }
-                    // --- NUOVO BLOCCO: Da ClaimPhase a ProofPhase ---
-                    // Impostato a 5 minuti dopo la fine dell'asta per comodità di demo.
-                    // Puoi cambiare `num_minutes() >= 5` in `num_hours() >= 24` per la produzione.
-                    else if auc.status == auction_core::enums::AuctionStatus::ClaimPhase 
-                         && now.signed_duration_since(auc.end_time).num_minutes() >= 5
+                        let total_bids = match bg_state.bid_service.list_by_auction(auc.id).await {
+                            Ok(bids) => bids.len(),
+                            Err(_) => 0,
+                        };
+
+                        if total_bids == 0 {
+                            tracing::info!("Asta {} scaduta con 0 offerte. Chiusura sequenziale immediata.", auc.id);
+                            
+                            // Eseguiamo l'intera catena di transizioni per soddisfare i vincoli di Rust
+                            if bg_state.auction_service.system_transition(auc.id, auction_core::enums::AuctionStatus::ClaimPhase).await.is_ok() {
+                                let _ = bg_state.auction_service.system_transition(auc.id, auction_core::enums::AuctionStatus::ProofPhase).await;
+                                if bg_state.auction_service.system_transition(auc.id, auction_core::enums::AuctionStatus::Closed).await.is_ok() {
+                                    let payload = serde_json::json!({ 
+                                        "auction_id": auc.id, 
+                                        "reason": "no_bids_received" 
+                                    });
+                                    let _ = bg_state.bulletin_board_service.append(
+                                        auc.id,
+                                        auction_core::bulletin_board::EntryKind::AuctionFinalize,
+                                        payload,
+                                        &bg_state.server_signer
+                                    ).await;
+                                }
+                            }
+                        } else if auc.status == auction_core::enums::AuctionStatus::ClaimPhase 
+                         && now.signed_duration_since(auc.end_time).num_minutes() >= 5 
                     {
-                        tracing::info!("ClaimPhase timer ended. Moving auction {} to ProofPhase", auc.id);
+                        tracing::info!("ClaimPhase timeout reached for auction {} (No reveals). Closing.", auc.id);
                         
-                        // Forza il passaggio alla generazione delle prove
-                        let _ = bg_state.auction_service.system_transition(auc.id, auction_core::enums::AuctionStatus::ProofPhase).await;
-                    }
-                    // ------------------------------------------------
-                    // 2. Timeout della Proof Phase: Passaggio da ProofPhase a Closed
-                    else if auc.status == auction_core::enums::AuctionStatus::ProofPhase 
-                         && now.signed_duration_since(auc.end_time).num_hours() >= 24 
-                    {
-                        tracing::info!("ProofPhase timeout reached for auction {}", auc.id);
-                        
-                        // Forza la chiusura dell'asta
                         if bg_state.auction_service.system_transition(auc.id, auction_core::enums::AuctionStatus::Closed).await.is_ok() {
                             let payload = serde_json::json!({ 
                                 "auction_id": auc.id, 
-                                "reason": "proof_phase_timeout",
-                                "note": "Timeout raggiunto: non tutti i perdenti hanno inviato le prove."
+                                "reason": "claim_phase_timeout",
+                                "note": "Il polling è terminato ma nessun utente ha rivendicato la vittoria."
                             });
                             let _ = bg_state.bulletin_board_service.append(
                                 auc.id,
@@ -98,8 +93,23 @@ async fn main() -> anyhow::Result<()> {
                                 &bg_state.server_signer
                             ).await;
                         }
+                    } else {
+                            // CASO CON OFFERTE: Avvia regolarmente il Polling (ClaimPhase)
+                            tracing::info!("Asta {} ha {} offerte. Avvio della ClaimPhase.", auc.id, total_bids);
+                            if bg_state.auction_service.system_transition(auc.id, auction_core::enums::AuctionStatus::ClaimPhase).await.is_ok() {
+                                let payload = serde_json::json!({ 
+                                    "auction_id": auc.id, 
+                                    "reason": "deadline_reached" 
+                                });
+                                let _ = bg_state.bulletin_board_service.append(
+                                    auc.id,
+                                    auction_core::bulletin_board::EntryKind::AuctionClose,
+                                    payload,
+                                    &bg_state.server_signer
+                                ).await;
+                            }
+                        }
                     }
-                    
                 }
             }
         }
