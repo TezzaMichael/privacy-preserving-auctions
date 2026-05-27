@@ -84,31 +84,23 @@ impl ProofService {
         auction_id: Uuid,
         bidder_id: Uuid,
         bid_id: Uuid,
-        revealed_value: u64,
         proof_json: String,
         stored_commitment_hex: &str,
         winner_value: i64,
-        gens: &PedersenGenerators,
     ) -> Result<LoserProofRecord, AuctionError> {
         if self.repo.find_loser_proof_by_bidder(auction_id, bidder_id).await?.is_some() {
             return Err(AuctionError::DuplicateProof);
         }
-        if revealed_value as i64 >= winner_value {
-            return Err(AuctionError::NotALoser);
-        }
-        let proof: ProofOfOpening = serde_json::from_str(&proof_json)?;
-        if proof.revealed_value != revealed_value {
-            return Err(AuctionError::InvalidProof);
-        }
-        let stored = auction_crypto::pedersen::PedersenCommitment::from_hex(stored_commitment_hex)
-            .map_err(|_| AuctionError::InvalidCommitment)?;
-        use subtle::ConstantTimeEq;
-        if !bool::from(proof.commitment.compress().as_bytes().ct_eq(&stored.to_bytes())) {
-            return Err(AuctionError::InvalidProof);
-        }
-        proof.verify(gens).map_err(|_| AuctionError::InvalidProof)?;
+
+        // Verification is handled by auction-verifier, but the server can do a pre-check
+        auction_verifier::loser::verify_loser_proof(
+            stored_commitment_hex,
+            &proof_json,
+            winner_value as u64,
+        ).map_err(|_| AuctionError::InvalidProof)?;
+
         let mut record = LoserProofRecord::new(
-            auction_id, bidder_id, bid_id, revealed_value as i64, proof_json,
+            auction_id, bidder_id, bid_id, proof_json,
         );
         record.verified = true;
         self.repo.insert_loser_proof(&record).await?;

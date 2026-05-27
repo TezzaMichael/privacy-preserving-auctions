@@ -98,3 +98,23 @@ export async function createProofOfOpeningWasm(
     return null;
   }
 }
+
+export async function createLoserRangeProofWasm(
+  bidValue: number,
+  blindingHex: string,
+  winnerValue: number
+): Promise<string | null> {
+  const mod = await loadWasm();
+  if (!mod) {
+    console.error("Il modulo WASM non si è caricato.");
+    return null;
+  }
+  
+  try {
+    // Call the new Rust WASM function
+    return mod.create_loser_range_proof(BigInt(bidValue), blindingHex, BigInt(winnerValue));
+  } catch (err) {
+    console.error("ERRORE INTERNO WASM create_loser_range_proof:", err);
+    return null;
+  }
+}

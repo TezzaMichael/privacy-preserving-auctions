@@ -31,9 +31,18 @@ pub struct PedersenGenerators {
 
 impl PedersenGenerators {
     pub fn standard() -> Self {
+        let pc_gens = bulletproofs::PedersenGens::default();
+        
+        let g_bytes = pc_gens.B.compress().to_bytes();
+        let h_bytes = pc_gens.B_blinding.compress().to_bytes();
+
         Self {
-            g: RISTRETTO_BASEPOINT_POINT,
-            h: Self::hash_to_point(b"auction-pedersen-H-generator-v1"),
+            g: curve25519_dalek::ristretto::CompressedRistretto(g_bytes)
+                .decompress()
+                .expect("Valid bulletproofs G generator"),
+            h: curve25519_dalek::ristretto::CompressedRistretto(h_bytes)
+                .decompress()
+                .expect("Valid bulletproofs H generator"),
         }
     }
 

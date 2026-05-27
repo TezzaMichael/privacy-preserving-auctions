@@ -153,11 +153,9 @@ async fn submit_loser_proof(
         auction_id,
         user_id,
         bid.id,
-        req.revealed_value,
         req.proof_json.clone(),
         &bid.commitment_hex,
         winner.revealed_value,
-        &state.pedersen_generators,
     ).await?;
 
     let payload = serde_json::to_value(LoserProofPayload {
@@ -165,7 +163,6 @@ async fn submit_loser_proof(
         auction_id,
         bidder_id: user_id,
         bid_id: bid.id,
-        revealed_value: record.revealed_value,
     })?;
     
     let _entry = state.bulletin_board_service

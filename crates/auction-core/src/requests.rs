@@ -40,7 +40,6 @@ pub struct RevealWinnerRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubmitLoserProofRequest {
     pub bid_id: Uuid,
-    pub revealed_value: u64,
     pub proof_json: String,
 }
 

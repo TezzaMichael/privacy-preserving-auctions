@@ -4,7 +4,8 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { loadSecret } from "@/lib/crypto";
-import { createProofOfOpeningWasm } from "@/lib/wasm"; // <-- Aggiunto l'import
+import { createProofOfOpeningWasm } from "@/lib/wasm"; 
+import { createLoserRangeProofWasm } from "@/lib/wasm";
 import type { SealedBid, BidSecret } from "@/types";
 import Modal from "@/components/ui/Modal";
 
@@ -30,12 +31,13 @@ export default function LoserProofModal({ auctionId, myBid, winnerValue, onClose
     setLoading(true);
     try {
       // Generazione del vero proof crittografico tramite WASM
-      const realProof = await createProofOfOpeningWasm(secret.value, secret.blinding_hex, myBid.commitment_hex);
+      // const realProof = await createProofOfOpeningWasm(secret.value, secret.blinding_hex, myBid.commitment_hex);
+      const realProof = await createLoserRangeProofWasm(secret.value, secret.blinding_hex, winnerValue);
       if (!realProof) {
         throw new Error("Impossibile generare il proof di sottomissione tramite WASM.");
       }
 
-      await api.proofs.submitLoser(token, auctionId, myBid.bid_id, secret.value, realProof);
+      await api.proofs.submitLoser(token, auctionId, myBid.bid_id, realProof);
       toast.success("Loser proof submitted");
       onSuccess();
     } catch (err: any) {

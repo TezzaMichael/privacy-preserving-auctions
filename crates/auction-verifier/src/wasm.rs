@@ -73,3 +73,20 @@ pub fn create_proof_of_opening(value: u64, blinding_hex: &str, commitment_hex: &
     serde_json::to_string(&proof)
         .map_err(|e| JsValue::from_str(&e.to_string()))
 }
+
+#[wasm_bindgen]
+pub fn create_loser_range_proof(bid_value: u64, blinding_hex: &str, winner_value: u64) -> Result<String, JsValue> {
+    use auction_crypto::{
+        pedersen::BlindingFactor,
+        range_proof::LoserRangeProof,
+    };
+    
+    let r = BlindingFactor::from_hex(blinding_hex)
+        .ok_or_else(|| JsValue::from_str("Invalid blinding factor hex"))?;
+        
+    let proof = LoserRangeProof::prove(bid_value, &r, winner_value)
+        .map_err(|e| JsValue::from_str(&format!("Range proof generation failed: {:?}", e)))?;
+        
+    serde_json::to_string(&proof)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+}

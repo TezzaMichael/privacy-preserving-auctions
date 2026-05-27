@@ -195,7 +195,7 @@ async fn cmd_submit_loser_proof(args: &[String], base_url: &str) -> Result<()> {
         .find(|b| b.commitment_hex == secret.commitment_hex)
         .context("bid not found on server")?;
 
-    let resp = client.submit_loser_proof(auction_id, my_bid.bid_id, secret.value, &proof_json).await?;
+    let resp = client.submit_loser_proof(auction_id, my_bid.bid_id, &proof_json).await?;
     println!("Loser proof submitted: proof_id={}, verified={}", resp.proof_id, resp.verified);
     Ok(())
 }

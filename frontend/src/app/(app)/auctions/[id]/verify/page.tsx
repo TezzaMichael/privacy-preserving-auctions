@@ -66,7 +66,6 @@ export default function VerifyPage() {
           bidder_id: l.bidder_id,
           bid_id: l.bid_id,
           commitment_hex: bids.find(b => b.bid_id === l.bid_id)?.commitment_hex ?? "",
-          revealed_value: l.revealed_value,
           proof_json: l.proof_json,
         })),
         // Passiamo l'oggetto esattamente come si aspetta la firma crittografica

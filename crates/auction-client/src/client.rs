@@ -137,11 +137,10 @@ impl AuctionClient {
     }
 
     pub async fn submit_loser_proof(
-        &self, auction_id: Uuid, bid_id: Uuid, revealed_value: u64, proof_json: &str,
+        &self, auction_id: Uuid, bid_id: Uuid, proof_json: &str,
     ) -> Result<LoserProofResponse, ClientError> {
         self.post(&format!("/auctions/{auction_id}/loser-proofs"), &SubmitLoserProofRequest {
             bid_id,
-            revealed_value,
             proof_json: proof_json.into(),
         }).await
     }

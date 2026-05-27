@@ -57,7 +57,6 @@ impl ClientVerifier {
                 bidder_id: p.bidder_id,
                 bid_id: p.bid_id,
                 commitment_hex: bid.map(|b| b.commitment_hex.clone()).unwrap_or_default(),
-                revealed_value: p.revealed_value as u64,
                 proof_json: p.proof_json.clone(),
             }
         }).collect();

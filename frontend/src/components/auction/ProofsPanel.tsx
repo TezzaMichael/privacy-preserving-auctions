@@ -31,7 +31,7 @@ export default function ProofsPanel({ winner, losers, bids }: Props) {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="mono text-slate-400 text-xs">{shortHash(l.bidder_id)}</div>
-                  <div className="font-semibold">{l.revealed_value.toLocaleString()}</div>
+                  <div className="font-semibold text-green-500 italic">Hidden (ZK Proof)</div>
                 </div>
                 <div className="flex items-center gap-1">
                   {l.verified

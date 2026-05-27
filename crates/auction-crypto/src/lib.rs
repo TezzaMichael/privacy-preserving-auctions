@@ -4,6 +4,7 @@ pub mod keys;
 pub mod pedersen;
 pub mod schnorr;
 pub mod signature;
+pub mod range_proof;
 
 pub use fiat_shamir::FiatShamirTranscript;
 pub use hash_chain::{ChainEntry, ChainError, HashChain};

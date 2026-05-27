@@ -42,10 +42,10 @@ impl ProofRepo {
 
     pub async fn insert_loser_proof(&self, p: &LoserProofRecord) -> Result<(), AuctionError> {
         sqlx::query!(
-            "INSERT INTO loser_proofs (id, auction_id, bidder_id, bid_id, revealed_value,
+            "INSERT INTO loser_proofs (id, auction_id, bidder_id, bid_id, 
              proof_json, verified, bb_sequence, submitted_at)
-             VALUES (?,?,?,?,?,?,?,?,?)",
-            p.id, p.auction_id, p.bidder_id, p.bid_id, p.revealed_value,
+             VALUES (?,?,?,?,?,?,?,?)",
+            p.id, p.auction_id, p.bidder_id, p.bid_id, 
             p.proof_json, p.verified, p.bb_sequence, p.submitted_at
         )
         .execute(&self.0)
@@ -58,7 +58,7 @@ impl ProofRepo {
             LoserProofRecord,
             r#"SELECT id as "id!: Uuid", auction_id as "auction_id!: Uuid",
             bidder_id as "bidder_id!: Uuid", bid_id as "bid_id!: Uuid",
-            revealed_value, proof_json, CAST(verified AS BOOLEAN) as "verified!: bool", bb_sequence,
+            proof_json, CAST(verified AS BOOLEAN) as "verified!: bool", bb_sequence,
             submitted_at as "submitted_at!: _"
             FROM loser_proofs WHERE auction_id = ? ORDER BY submitted_at ASC"#,
             auction_id
@@ -75,7 +75,7 @@ impl ProofRepo {
             LoserProofRecord,
             r#"SELECT id as "id!: Uuid", auction_id as "auction_id!: Uuid",
             bidder_id as "bidder_id!: Uuid", bid_id as "bid_id!: Uuid",
-            revealed_value, proof_json, CAST(verified AS BOOLEAN) as "verified!: bool", bb_sequence,
+            proof_json, CAST(verified AS BOOLEAN) as "verified!: bool", bb_sequence,
             submitted_at as "submitted_at!: _"
             FROM loser_proofs WHERE auction_id = ? AND bidder_id = ?"#,
             auction_id, bidder_id

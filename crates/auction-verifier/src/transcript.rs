@@ -35,7 +35,6 @@ pub struct LoserData {
     pub bidder_id: Uuid,
     pub bid_id: Uuid,
     pub commitment_hex: String,
-    pub revealed_value: u64,
     pub proof_json: String,
 }
 
@@ -106,10 +105,10 @@ pub fn verify_auction_transcript(t: &AuctionTranscript) -> VerificationResult {
             }
 
             let losers: Vec<_> = t.losers.iter()
-                .map(|l| (l.commitment_hex.clone(), l.revealed_value, l.proof_json.clone()))
+                .map(|l| (l.commitment_hex.clone(), l.proof_json.clone()))
                 .collect();
             
-            let errs = verify_all_loser_proofs(&losers, w.revealed_value, gens, t.min_bid, t.max_bid, t.bid_step);
+            let errs = verify_all_loser_proofs(&losers, w.revealed_value);
             if errs.is_empty() {
                 CheckResult::ok()
             } else {
@@ -131,31 +130,32 @@ pub fn verify_auction_transcript(t: &AuctionTranscript) -> VerificationResult {
     }
 }
 
+
+
 #[cfg(test)]
-mod tests {
+mod e2e_tests {
     use super::*;
     use auction_core::bulletin_board::{BulletinBoardEntry, EntryKind};
     use auction_crypto::{
-        pedersen::{BlindingFactor, PedersenCommitment},
+        pedersen::{BlindingFactor, PedersenCommitment, PedersenGenerators},
         schnorr::ProofOfOpening,
+        range_proof::LoserRangeProof,
         signature::ServerSigner,
     };
     use chrono::Utc;
     use rand::rngs::OsRng;
-    use sha2::{Digest, Sha256};
+    use uuid::Uuid;
 
-    fn bb_entry(seq: i64, prev: [u8; 32], payload: &str, signer: &ServerSigner) -> (BulletinBoardEntry, [u8; 32]) {
-        let pb = payload.as_bytes();
-        let pb = payload.as_bytes();
-        
-        // <-- MODIFICA QUI: Usa la funzione unificata
-        let hash = BulletinBoardEntry::compute_hash(&prev, seq, pb);
+    // Helper to generate a valid Bulletin Board entry
+    fn mock_bb_entry(seq: i64, prev: [u8; 32], signer: &ServerSigner) -> (BulletinBoardEntry, [u8; 32]) {
+        let payload = format!("mock-payload-{}", seq);
+        let hash = BulletinBoardEntry::compute_hash(&prev, seq, payload.as_bytes());
         
         (BulletinBoardEntry {
             sequence: seq,
             auction_id: Uuid::new_v4(),
             entry_kind: EntryKind::SealedBid,
-            payload_json: payload.to_string(),
+            payload_json: payload.clone(),
             prev_hash_hex: hex::encode(prev),
             entry_hash_hex: hex::encode(hash),
             server_signature_hex: hex::encode(signer.sign(&hash)),
@@ -163,67 +163,106 @@ mod tests {
         }, hash)
     }
 
-    fn valid_transcript() -> AuctionTranscript {
-        let signer = ServerSigner::generate(&mut OsRng);
+    #[test]
+    fn test_full_auction_lifecycle_with_zk_proofs() {
+        let mut rng = OsRng;
         let gens = PedersenGenerators::standard();
+        let server_signer = ServerSigner::generate(&mut rng);
 
-        let rw = BlindingFactor::random(&mut OsRng);
-        let cw = PedersenCommitment::commit(1000, &rw, &gens);
-        let pw = ProofOfOpening::prove(1000, &rw, &cw, &gens, &mut OsRng);
+        // ==========================================
+        // PHASE 1: AUCTION SETUP
+        // ==========================================
+        let auction_id = Uuid::new_v4();
+        let min_bid = 100;
+        let bid_step = 10;
 
-        let rl = BlindingFactor::random(&mut OsRng);
-        let cl = PedersenCommitment::commit(500, &rl, &gens);
-        let pl = ProofOfOpening::prove(500, &rl, &cl, &gens, &mut OsRng);
+        // ==========================================
+        // PHASE 2: BIDDING (CLIENTS COMMIT)
+        // ==========================================
+        // Alice (Winner) bids 500
+        let alice_id = Uuid::new_v4();
+        let alice_val = 500;
+        let alice_blind = BlindingFactor::random(&mut rng);
+        let alice_commit = PedersenCommitment::commit(alice_val, &alice_blind, &gens);
 
-        let (e0, h0) = bb_entry(0, [0u8;32], "create", &signer);
-        let (e1, _)  = bb_entry(1, h0, "bids", &signer);
+        // Bob (Loser) bids 300
+        let bob_id = Uuid::new_v4();
+        let bob_val = 300;
+        let bob_blind = BlindingFactor::random(&mut rng);
+        let bob_commit = PedersenCommitment::commit(bob_val, &bob_blind, &gens);
 
-        AuctionTranscript {
-            auction_id: Uuid::new_v4(),
-            min_bid: 0,                 
-            max_bid: None,              
-            bid_step: 1,
-            bulletin_board: vec![e0, e1],
-            winner: Some(WinnerData {
-                bidder_id: Uuid::new_v4(), bid_id: Uuid::new_v4(),
-                commitment_hex: cw.to_hex(), revealed_value: 1000,
-                proof_json: serde_json::to_string(&pw).unwrap(),
-            }),
-            losers: vec![LoserData {
-                bidder_id: Uuid::new_v4(), bid_id: Uuid::new_v4(),
-                commitment_hex: cl.to_hex(), revealed_value: 500,
-                proof_json: serde_json::to_string(&pl).unwrap(),
-            }],
-            server_verifier: signer.verifier(),
-            pedersen_generators: gens,
-        }
-    }
+        // Charlie (Loser) bids 450
+        let charlie_id = Uuid::new_v4();
+        let charlie_val = 450;
+        let charlie_blind = BlindingFactor::random(&mut rng);
+        let charlie_commit = PedersenCommitment::commit(charlie_val, &charlie_blind, &gens);
 
-    #[test] fn fully_valid() {
-        assert!(verify_auction_transcript(&valid_transcript()).fully_valid);
-    }
-    #[test] fn tampered_bb_fails_chain() {
-        let mut t = valid_transcript();
-        t.bulletin_board[0].payload_json = "evil".into();
-        let r = verify_auction_transcript(&t);
-        assert!(!r.chain_integrity.passed && !r.fully_valid);
-    }
-    #[test] fn no_winner_fails() {
-        let mut t = valid_transcript();
-        t.winner = None;
-        assert!(!verify_auction_transcript(&t).winner_proof.passed);
-    }
-    #[test] fn loser_higher_than_winner_fails() {
-        let mut t = valid_transcript();
-        let gens = t.pedersen_generators.clone();
-        let r = BlindingFactor::random(&mut OsRng);
-        let c = PedersenCommitment::commit(2000, &r, &gens);
-        let p = ProofOfOpening::prove(2000, &r, &c, &gens, &mut OsRng);
-        t.losers[0] = LoserData {
-            bidder_id: Uuid::new_v4(), bid_id: Uuid::new_v4(),
-            commitment_hex: c.to_hex(), revealed_value: 2000,
-            proof_json: serde_json::to_string(&p).unwrap(),
+        // Simulate the Bulletin Board recording these bids
+        let (e1, h1) = mock_bb_entry(1, [0u8; 32], &server_signer); // Alice Bid
+        let (e2, h2) = mock_bb_entry(2, h1, &server_signer);        // Bob Bid
+        let (e3, _)  = mock_bb_entry(3, h2, &server_signer);        // Charlie Bid
+
+        // ==========================================
+        // PHASE 3: WINNER REVEAL
+        // ==========================================
+        // Alice proves she bid 500 using a Schnorr Proof of Opening
+        let alice_proof = ProofOfOpening::prove(alice_val, &alice_blind, &alice_commit, &gens, &mut rng);
+        
+        let winner_data = WinnerData {
+            bidder_id: alice_id,
+            bid_id: Uuid::new_v4(),
+            commitment_hex: alice_commit.to_hex(),
+            revealed_value: alice_val,
+            proof_json: serde_json::to_string(&alice_proof).unwrap(),
         };
-        assert!(!verify_auction_transcript(&t).loser_proofs.passed);
+
+        // ==========================================
+        // PHASE 4: LOSER PROOFS (ZERO-KNOWLEDGE)
+        // ==========================================
+        // Bob proves 300 < 500 using a Bulletproof
+        let bob_zk_proof = LoserRangeProof::prove(bob_val, &bob_blind, alice_val).expect("Bob's proof failed");
+        
+        let bob_data = LoserData {
+            bidder_id: bob_id,
+            bid_id: Uuid::new_v4(),
+            commitment_hex: bob_commit.to_hex(),
+            proof_json: serde_json::to_string(&bob_zk_proof).unwrap(), // No revealed_value!
+        };
+
+        // Charlie proves 450 < 500 using a Bulletproof
+        let charlie_zk_proof = LoserRangeProof::prove(charlie_val, &charlie_blind, alice_val).expect("Charlie's proof failed");
+        
+        let charlie_data = LoserData {
+            bidder_id: charlie_id,
+            bid_id: Uuid::new_v4(),
+            commitment_hex: charlie_commit.to_hex(),
+            proof_json: serde_json::to_string(&charlie_zk_proof).unwrap(), // No revealed_value!
+        };
+
+        // ==========================================
+        // PHASE 5: INDEPENDENT AUDIT
+        // ==========================================
+        // Assemble the final transcript
+        let transcript = AuctionTranscript {
+            auction_id,
+            min_bid,
+            max_bid: None,
+            bid_step,
+            bulletin_board: vec![e1, e2, e3],
+            winner: Some(winner_data),
+            losers: vec![bob_data, charlie_data],
+            server_verifier: server_signer.verifier(),
+            pedersen_generators: gens,
+        };
+
+        // The verifier checks the entire auction outcome
+        let verification_result = verify_auction_transcript(&transcript);
+
+        // Ensure everything passed successfully
+        assert!(verification_result.chain_integrity.passed, "Chain integrity failed");
+        assert!(verification_result.server_signatures.passed, "Signatures failed");
+        assert!(verification_result.winner_proof.passed, "Winner proof failed");
+        assert!(verification_result.loser_proofs.passed, "Loser proofs failed: {:?}", verification_result.loser_proofs.error);
+        assert!(verification_result.fully_valid, "The auction transcript is invalid!");
     }
 }

@@ -37,7 +37,6 @@ pub struct LoserProofRecord {
     pub auction_id: Uuid,
     pub bidder_id: Uuid,
     pub bid_id: Uuid,
-    pub revealed_value: i64,
     pub proof_json: String,
     pub verified: bool,
     pub bb_sequence: Option<i64>,
@@ -45,13 +44,12 @@ pub struct LoserProofRecord {
 }
 
 impl LoserProofRecord {
-    pub fn new(auction_id: Uuid, bidder_id: Uuid, bid_id: Uuid, revealed_value: i64, proof_json: String) -> Self {
+    pub fn new(auction_id: Uuid, bidder_id: Uuid, bid_id: Uuid, proof_json: String) -> Self {
         Self {
             id: Uuid::new_v4(),
             auction_id,
             bidder_id,
             bid_id,
-            revealed_value,
             proof_json,
             verified: false,
             bb_sequence: None,

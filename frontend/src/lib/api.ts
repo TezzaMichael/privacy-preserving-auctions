@@ -58,8 +58,8 @@ export const api = {
       createApi(token).post<WinnerReveal>(`/auctions/${auction_id}/reveal`, { bid_id, revealed_value, proof_json }),
     getWinner: (auction_id: string) =>
       createApi().get<WinnerReveal>(`/auctions/${auction_id}/reveal`),
-    submitLoser: (token: string, auction_id: string, bid_id: string, revealed_value: number, proof_json: string) =>
-      createApi(token).post<LoserProof>(`/auctions/${auction_id}/loser-proofs`, { bid_id, revealed_value, proof_json }),
+    submitLoser: (token: string, auction_id: string, bid_id: string, proof_json: string) =>
+      createApi(token).post<LoserProof>(`/auctions/${auction_id}/loser-proofs`, { bid_id, proof_json }),
     listLosers: (auction_id: string) =>
       createApi().get<{ proofs: LoserProof[]; total: number }>(`/auctions/${auction_id}/loser-proofs`),
   },

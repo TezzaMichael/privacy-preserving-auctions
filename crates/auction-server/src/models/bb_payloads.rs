@@ -44,7 +44,6 @@ pub struct LoserProofPayload {
     pub auction_id: Uuid,
     pub bidder_id: Uuid,
     pub bid_id: Uuid,
-    pub revealed_value: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

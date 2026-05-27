@@ -57,7 +57,6 @@ export interface LoserProof {
   proof_id: string;
   bidder_id: string;
   bid_id: string;
-  revealed_value: number;
   proof_json: string;
   verified: boolean;
   bb_sequence: number | null;

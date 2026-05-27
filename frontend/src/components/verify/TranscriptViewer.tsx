@@ -63,7 +63,7 @@ export default function TranscriptViewer({ entries, bids, winner, losers }: Prop
               <div className="flex items-center justify-between">
                 <div>
                   <div className="mono text-slate-400">{shortHash(l.bidder_id)}</div>
-                  <div className="text-slate-300 font-medium">value: {l.revealed_value}</div>
+                  <div className="text-slate-300 font-medium italic text-green-400">value: Hidden (ZK Proof)</div>
                 </div>
                 <span className={cn("badge", l.verified ? "bg-green-500/20 text-green-300" : "bg-orange-500/20 text-orange-300")}>
                   {l.verified ? "Verified" : "Pending"}
