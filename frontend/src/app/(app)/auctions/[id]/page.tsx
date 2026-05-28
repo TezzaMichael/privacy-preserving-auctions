@@ -45,6 +45,12 @@ export default function AuctionPage() {
       setAuction(aR.data);
       setBids(bR.data.bids);
       setEntries(bbR.data.entries);
+      
+      const secret = loadSecret(id);
+      if (secret) {
+        setMySecretValue(secret.value);
+      }
+
       if (["ClaimPhase", "ProofPhase", "Closed"].includes(aR.data.status)) {
         try { const wR = await api.proofs.getWinner(id); setWinner(wR.data); } catch {}
       }
@@ -170,6 +176,42 @@ export default function AuctionPage() {
     return () => { if (autoRevealTimerRef.current) clearTimeout(autoRevealTimerRef.current); };
   }, [auction?.status, myBid, winner, id, token]);
 
+  useEffect(() => {
+    if (!auction || auction.status !== "ProofPhase" || !myBid || !token || !winner) return;
+    
+    // Se il mio valore segreto è MAGGIORE di quello del vincitore, lancio la sfida!
+    if (mySecretValue !== null && mySecretValue > winner.revealed_value) {
+        const executeChallenge = async () => {
+            try {
+                toast.loading("Higher value detected! Initiating Challenge...", { id: "challenge" });
+                const storedBidData = loadSecret(id);
+                
+                // Controllo di sicurezza richiesto da TypeScript
+                if (!storedBidData) {
+                    toast.error("Bid data lost from browser. Cannot challenge.", { id: "challenge" });
+                    return;
+                }
+
+                const realProof = await createProofOfOpeningWasm(mySecretValue, storedBidData.blinding_hex, myBid.commitment_hex);
+                
+                if (!realProof) {
+                    toast.error("Unable to generate the cryptographic proof.", { id: "challenge" });
+                    return;
+                }
+
+                await api.proofs.submitLoser(token, id, myBid.bid_id, realProof);
+                
+                toast.success("Challenge successful! Polling restarted.", { id: "challenge" });
+            } catch (err) {
+                toast.success("Fraud prevented! The auction is restarting...", { id: "challenge" });
+            } finally {
+                load();
+            }
+        };
+        executeChallenge();
+    }
+  }, [auction?.status, myBid, winner, mySecretValue, id, token]);
+
   async function transition(action: "open" | "close" | "finalize") {
     if (!token) return;
     try {
@@ -184,6 +226,11 @@ export default function AuctionPage() {
 
   const isCreator = user?.user_id === auction?.creator_id;
   const iAmLoserAndHaveProven = losers.some(l => l.bidder_id === user?.user_id);
+
+  const visibleBids = bids.filter(b => 
+    b.bidder_id === user?.user_id || 
+    b.bidder_id === winner?.winner_id
+  );
 
   return (
     <div className="space-y-6">
@@ -262,7 +309,7 @@ export default function AuctionPage() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <BidsPanel bids={bids} currentUserId={user?.user_id} />
+        <BidsPanel bids={visibleBids} currentUserId={user?.user_id} />
         <ProofsPanel winner={winner} losers={losers} bids={bids} />
       </div>
       <BulletinBoardPanel entries={entries} onRefresh={load} />

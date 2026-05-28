@@ -149,6 +149,7 @@ async fn submit_loser_proof(
     let winner = state.proof_service.get_winner_reveal(auction_id).await?
         .ok_or_else(|| AuctionError::Internal("no winner reveal".into()))?;
 
+
     let record = state.proof_service.submit_loser_proof(
         auction_id,
         user_id,

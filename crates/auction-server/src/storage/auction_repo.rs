@@ -80,4 +80,11 @@ impl AuctionRepo {
         .await?;
         Ok(())
     }
+
+    pub async fn restart_polling(&self, id: Uuid, new_end_time: chrono::DateTime<chrono::Utc>) -> Result<(), sqlx::Error> {
+        sqlx::query!("UPDATE auctions SET status = 'ClaimPhase', end_time = ? WHERE id = ?", new_end_time, id)
+            .execute(&self.0)
+            .await?;
+        Ok(())
+    }
 }

@@ -38,3 +38,9 @@ export function entryKindColor(kind: string): string {
     AuctionFinalize: "text-red-400",
   }[kind] ?? "text-slate-400";
 }
+
+export function formatAddress(address?: string): string {
+  if (!address) return "";
+  if (address.length <= 12) return address;
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}

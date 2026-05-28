@@ -122,4 +122,9 @@ impl ProofService {
     pub async fn update_loser_bb_sequence(&self, id: Uuid, seq: i64) -> Result<(), AuctionError> {
         self.repo.update_loser_bb_sequence(id, seq).await
     }
+
+    pub async fn delete_winner(&self, auction_id: Uuid) -> Result<(), AuctionError> {
+        self.repo.delete_winner(auction_id).await.map_err(|e| AuctionError::Internal(e.to_string()))?;
+        Ok(())
+    }
 }

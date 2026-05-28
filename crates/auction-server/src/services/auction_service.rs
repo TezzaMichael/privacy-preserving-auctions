@@ -118,4 +118,10 @@ impl AuctionService {
         }
         Ok(auction)
     }
+
+    pub async fn restart_polling(&self, id: Uuid) -> Result<(), AuctionError> {
+        let new_end_time = chrono::Utc::now(); 
+        self.repo.restart_polling(id, new_end_time).await.map_err(|e| AuctionError::Internal(e.to_string()))?;
+        Ok(())
+    }
 }

@@ -107,4 +107,11 @@ impl ProofRepo {
             .map_err(|_| AuctionError::Internal("Database error deleting winner".into()))?;
         Ok(())
     }
+
+    pub async fn delete_winner(&self, auction_id: Uuid) -> Result<(), sqlx::Error> {
+        sqlx::query!("DELETE FROM winner_reveals WHERE auction_id = ?", auction_id)
+            .execute(&self.0)
+            .await?;
+        Ok(())
+    }
 }
