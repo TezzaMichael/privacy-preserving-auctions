@@ -1,5 +1,5 @@
 # =========================
-# Sistema Operativo
+# Operating System
 # =========================
 .DS_Store
 .AppleDouble
@@ -11,7 +11,7 @@ desktop.ini
 # =========================
 # Backend (Rust / Cargo)
 # =========================
-# Cartelle di compilazione
+# Compilation artifacts
 /target/
 crates/*/target/
 
@@ -21,43 +21,40 @@ crates/*/target/
 # =========================
 # Frontend (Node.js / Next.js)
 # =========================
-# Dipendenze
+# dependencies of Node.js
 frontend/node_modules/
 node_modules/
 
-# Cartelle di build e cache di Next.js
+# Folder of build and output of Next.js
 frontend/.next/
 frontend/out/
 frontend/build/
 
-# Log di NPM / Yarn
+# Log of NPM / Yarn
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
 # =========================
-# Artefatti WebAssembly (WASM)
+# Artifacts of WebAssembly compilation
 # =========================
-# I moduli wasm vengono compilati tramite `npm run wasm:build`, 
-# quindi non serve tracciarli su git.
 frontend/src/wasm/
 
 # =========================
 # Database
 # =========================
-# Ignoriamo i file del database SQLite locale per evitare di 
-# caricare dati di test sul repository.
 *.db
+*.db-shm
+*.db-wal
 *.db-journal
 *.sqlite
 *.sqlite3
 auction.db
 
 # =========================
-# Variabili d'Ambiente
+# Environment Variables
 # =========================
-# Non committare MAI le chiavi segrete
 #.env
 .env.local
 .env.development.local
@@ -65,7 +62,7 @@ auction.db
 .env.production.local
 
 # =========================
-# IDE e Strumenti di Sviluppo
+# IDE and Editor Files
 # =========================
 .vscode/
 .idea/
