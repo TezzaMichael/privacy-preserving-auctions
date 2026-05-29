@@ -33,8 +33,7 @@ export default function AuctionPage() {
   const [countdownRemaining, setCountdownRemaining] = useState<number | null>(null);
   const [pollingFailed, setPollingFailed] = useState(false);
   const autoRevealTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Stato per mostrare a schermo l'offerta dell'utente
+  const isClaimingRef = useRef(false);
   const [mySecretValue, setMySecretValue] = useState<number | null>(null);
 
   async function load() {
@@ -93,11 +92,13 @@ export default function AuctionPage() {
     const maxBid = auction.max_bid;
     const bidStep = auction.bid_step;
     const limit = auction.min_bid || 0;
-    const secondsPerStep = 10;
-    const warmUpMs = 120 * 1000;
+    const secondsPerStep = 2;
+    const warmUpMs = 60 * 1000;
     const start = new Date(auction.end_time).getTime();
 
     const updatePrice = () => {
+      if (isClaimingRef.current) return;
+
       const now = Date.now();
       const elapsedMs = now - start;
 
@@ -140,8 +141,8 @@ export default function AuctionPage() {
             const myValue = storedBidData.value;
             const maxBid = auction.max_bid || 0;
             const bidStep = auction.bid_step;
-            const secondsPerStep = 10;
-            const warmUpMs = 120 * 1000;
+            const secondsPerStep = 2;
+            const warmUpMs = 60 * 1000;
             const claimStartTime = new Date(auction.end_time).getTime();
             const now = Date.now();
             
@@ -153,6 +154,7 @@ export default function AuctionPage() {
 
             const executeAutoReveal = async () => {
                 if (winner) return;
+                isClaimingRef.current = true;
                 try {
                     toast.loading(`Submitting claim for ${myValue} ₿...`, { id: "reveal-toast" });
                     const realProof = await createProofOfOpeningWasm(myValue, storedBidData.blinding_hex, myBid.commitment_hex);
@@ -179,33 +181,24 @@ export default function AuctionPage() {
   useEffect(() => {
     if (!auction || auction.status !== "ProofPhase" || !myBid || !token || !winner) return;
     
-    // Se il mio valore segreto è MAGGIORE di quello del vincitore, lancio la sfida!
     if (mySecretValue !== null && mySecretValue > winner.revealed_value) {
         const executeChallenge = async () => {
             try {
-                toast.loading("Higher value detected! Initiating Challenge...", { id: "challenge" });
+                toast.loading("Higher value detected! Taking over the lead...", { id: "challenge" });
                 const storedBidData = loadSecret(id);
                 
-                // Controllo di sicurezza richiesto da TypeScript
-                if (!storedBidData) {
-                    toast.error("Bid data lost from browser. Cannot challenge.", { id: "challenge" });
-                    return;
-                }
+                if (!storedBidData) throw new Error("Bid data lost from browser.");
 
                 const realProof = await createProofOfOpeningWasm(mySecretValue, storedBidData.blinding_hex, myBid.commitment_hex);
-                
-                if (!realProof) {
-                    toast.error("Unable to generate the cryptographic proof.", { id: "challenge" });
-                    return;
-                }
+                if (!realProof) throw new Error("Proof generation failed.");
 
-                await api.proofs.submitLoser(token, id, myBid.bid_id, realProof);
+                // RISOLUZIONE BUG: Si usa revealWinner (che fa l'override nel backend), non submitLoser!
+                await api.proofs.revealWinner(token, id, myBid.bid_id, mySecretValue, realProof);
                 
-                toast.success("Challenge successful! Polling restarted.", { id: "challenge" });
-            } catch (err) {
-                toast.success("Fraud prevented! The auction is restarting...", { id: "challenge" });
-            } finally {
+                toast.success("Challenge successful! You are the new provisional winner.", { id: "challenge" });
                 load();
+            } catch (err: any) {
+                toast.error(err.message || "Failed to challenge", { id: "challenge" });
             }
         };
         executeChallenge();
@@ -226,6 +219,8 @@ export default function AuctionPage() {
 
   const isCreator = user?.user_id === auction?.creator_id;
   const iAmLoserAndHaveProven = losers.some(l => l.bidder_id === user?.user_id);
+  const hasValidWinner = winner && winner.winner_id !== "00000000-0000-0000-0000-000000000000";
+  const amIWinner = hasValidWinner && winner.winner_id === user?.user_id;
 
   const visibleBids = bids.filter(b => 
     b.bidder_id === user?.user_id || 
@@ -237,6 +232,7 @@ export default function AuctionPage() {
       <AuctionHeader
         auction={auction}
         isCreator={isCreator}
+        mySecretValue={mySecretValue}
         myBid={myBid}
         hasWinner={!!winner}
         onTransition={transition}
@@ -250,15 +246,75 @@ export default function AuctionPage() {
         ) ? () => setShowLoserModal(true) : undefined}
       />
       
-      {/* Visualizzazione dell'offerta personale per l'utente loggato */}
-      {mySecretValue !== null && myBid && (
-        <div className="bg-slate-800 border border-blue-500/30 text-blue-300 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
-          <span>Your sealed bid value is saved securely in your browser.</span>
-          <span className="font-mono font-bold text-lg">{mySecretValue} ₿</span>
+    
+
+      {auction.status === "ProofPhase" && winner && (
+        <div className={`border rounded-xl p-6 text-left shadow-lg transition-all duration-300 ${
+          amIWinner 
+            ? 'bg-emerald-950/40 border-emerald-500/50 shadow-emerald-900/20' 
+            : 'bg-amber-950/40 border-amber-500/50 shadow-amber-900/20'
+        }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className={`text-lg font-bold uppercase tracking-wider mb-1 flex items-center gap-2 ${
+                amIWinner ? 'text-emerald-400' : 'text-amber-400'
+              }`}>
+                {amIWinner ? '🎉 Provisional Winner' : '⚖️ Standing Update'}
+              </h2>
+              <p className="text-slate-200 text-sm">
+                {amIWinner 
+                  ? "You are currently the winner! Wait for other participants' proofs or until the phase closes."
+                  : "You are not the winner currently. If your bid is higher, submit a proof to challenge!"
+                }
+              </p>
+            </div>
+            <div className="sm:text-right bg-slate-900/50 px-4 py-2 rounded-lg border border-white/5">
+              <div className="text-xs text-slate-400 mb-1 uppercase tracking-wider">Current Winning Bid</div>
+              <div className="text-2xl font-mono font-bold text-white">{winner.revealed_value} ₿</div>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* BANNER NESSUN VINCITORE (Asta chiusa senza claim) */}
+      {auction.status === "Closed" && (
+        <div className={`border rounded-xl p-6 text-left shadow-lg transition-all duration-300 ${
+          hasValidWinner 
+            ? amIWinner 
+              ? 'bg-emerald-950/40 border-emerald-500/50 shadow-emerald-900/20' 
+              : 'bg-rose-950/40 border-rose-500/50 shadow-rose-900/20'
+            : 'bg-slate-800 border-slate-600 shadow-slate-900/20'
+        }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className={`text-lg font-bold uppercase tracking-wider mb-1 flex items-center gap-2 ${
+                hasValidWinner 
+                  ? amIWinner ? 'text-emerald-400' : 'text-rose-400'
+                  : 'text-slate-400'
+              }`}>
+                {hasValidWinner 
+                  ? amIWinner ? '🏆 YOU WON!' : '❌ YOU LOST' 
+                  : '⚪ NO WINNER'
+                }
+              </h2>
+              <p className="text-slate-200 text-sm">
+                {hasValidWinner 
+                  ? amIWinner 
+                    ? `Congratulations! You won the auction with a final bid of ${winner.revealed_value} ₿.`
+                    : `The auction has ended. The winning bid was ${winner.revealed_value} ₿.`
+                  : "The auction closed without any verified claims. There is no winner for this auction."
+                }
+              </p>
+            </div>
+            {hasValidWinner && (
+              <div className="sm:text-right bg-slate-900/50 px-4 py-2 rounded-lg border border-white/5">
+                <div className="text-xs text-slate-400 mb-1 uppercase tracking-wider">Final Price</div>
+                <div className="text-2xl font-mono font-bold text-white">{winner.revealed_value} ₿</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {auction.status === "Closed" && !winner && (
         <div className="border rounded-xl p-8 text-center shadow-lg bg-slate-900 border-red-500/30 shadow-red-900/20">
           <h2 className="text-xl font-medium text-red-400 uppercase tracking-widest mb-2">Auction Closed</h2>

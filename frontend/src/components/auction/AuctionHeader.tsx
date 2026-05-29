@@ -8,6 +8,7 @@ interface Props {
   auction: Auction;
   isCreator: boolean;
   myBid?: SealedBid;
+  mySecretValue?: number | null;
   onTransition: (a: "open" | "close" | "finalize") => void;
   onBid: () => void;
   onReveal?: () => void;
@@ -20,6 +21,7 @@ export default function AuctionHeader({
   auction, 
   isCreator, 
   myBid, 
+  mySecretValue,
   onTransition, 
   onBid, 
   onLoserProof, 
@@ -77,7 +79,12 @@ export default function AuctionHeader({
         </div>
         
         <div className="flex flex-wrap gap-2 items-center">
-          
+          {mySecretValue !== undefined && mySecretValue !== null && myBid && (
+            <div className="bg-slate-800 border border-blue-500/30 px-3 py-1.5 rounded-lg flex items-center gap-2 mr-2">
+              <span className="text-xs text-slate-400 uppercase tracking-wider">Your Bid:</span>
+              <span className="font-mono font-bold text-blue-400">{mySecretValue} ₿</span>
+            </div>
+          )}
           {/* Cronometro visualizzato solo durante la fase BiddingOpen */}
           {timeRemainingStr && (
             <div className="text-xs font-mono bg-slate-800/80 border border-slate-700 px-3 py-1.5 rounded-lg text-amber-400 font-semibold flex items-center gap-1.5 animate-pulse">

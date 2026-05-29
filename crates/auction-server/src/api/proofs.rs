@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use axum::{
     extract::{Path, State},
+    response::IntoResponse,
     routing::{get, post},
     Json, Router,
 };
@@ -39,10 +40,10 @@ async fn reveal_winner(
     
     let max_bid = auction.max_bid.unwrap_or(0) as i64; 
     let bid_step = auction.bid_step as i64;
-    let seconds_per_step = 10;
+    let seconds_per_step = 2;
     
     // REINTRODOTTI I 2 MINUTI DI ATTESA
-    let warm_up_seconds = 120; 
+    let warm_up_seconds = 60; 
     let elapsed_seconds = now.signed_duration_since(claim_start_time).num_seconds().max(0);
     
     let current_polling_price = if elapsed_seconds < warm_up_seconds {
@@ -127,10 +128,12 @@ async fn reveal_winner(
 async fn get_winner_reveal(
     State(state): State<Arc<AppState>>,
     Path(auction_id): Path<Uuid>,
-) -> ApiResult<Json<WinnerRevealDetailResponse>> {
-    let record = state.proof_service.get_winner_reveal(auction_id).await?
-        .ok_or_else(|| AuctionError::Internal("no winner reveal yet".into()))?;
-    Ok(Json(WinnerRevealDetailResponse::from(record)))
+) -> impl axum::response::IntoResponse {
+    match state.proof_service.get_winner_reveal(auction_id).await {
+        Ok(Some(record)) => axum::response::Json(WinnerRevealDetailResponse::from(record)).into_response(),
+        Ok(None) => axum::http::StatusCode::NOT_FOUND.into_response(),
+        Err(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
 }
 
 async fn submit_loser_proof(

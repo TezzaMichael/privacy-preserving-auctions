@@ -122,20 +122,32 @@ async fn finalize_auction(
     AuthUser(user_id): AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<AuctionResponse>> {
-    let winner = state.proof_service.get_winner_reveal(id).await?
-        .ok_or_else(|| auction_core::errors::AuctionError::Internal("no winner reveal".into()))?;
+    let winner_opt = state.proof_service.get_winner_reveal(id).await?;
     let total = state.bid_service.count_by_auction(id).await?;
+    
     let auction = state.auction_service
         .transition(id, user_id, AuctionStatus::Closed)
         .await?;
-    let payload = serde_json::to_value(crate::models::bb_payloads::AuctionFinalizePayload {
-        auction_id: id,
-        winner_id: winner.winner_id,
-        winner_value: winner.revealed_value,
-        total_bids: total,
-    })?;
+
+    let payload = match winner_opt {
+        Some(winner) => serde_json::to_value(crate::models::bb_payloads::AuctionFinalizePayload {
+            auction_id: id,
+            winner_id: winner.winner_id,
+            winner_value: winner.revealed_value,
+            total_bids: total,
+        })?,
+        None => serde_json::json!({
+            "auction_id": id,
+            "winner_id": Uuid::nil(),
+            "winner_value": 0,
+            "total_bids": total,
+            "note": "Nessun vincitore rivendicato"
+        })
+    };
+
     state.bulletin_board_service
         .append(id, auction_core::bulletin_board::EntryKind::AuctionFinalize, payload, &state.server_signer)
         .await?;
+        
     Ok(Json(AuctionResponse::from(auction)))
 }
