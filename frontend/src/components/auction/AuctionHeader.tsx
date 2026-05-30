@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Play, Eye, FileCheck, Clock } from "lucide-react";
+import { Play, Eye, FileCheck, Clock, Unlock, ShieldAlert } from "lucide-react";
 import type { Auction, SealedBid } from "@/types";
 import { cn, statusColor, statusLabel, formatDate } from "@/lib/utils";
 
@@ -8,12 +8,12 @@ interface Props {
   auction: Auction;
   isCreator: boolean;
   myBid?: SealedBid;
-  mySecretValue?: number | null;
+  mySecretValue?: number | null; 
   onTransition: (a: "open" | "close" | "finalize") => void;
   onBid: () => void;
-  onReveal?: () => void;
+  onReveal?: () => void; 
   onLoserProof?: () => void;
-  onVerifyClick?: () => void; 
+  isZkpChallenge?: boolean | null;
   hasWinner?: boolean;
 }
 
@@ -21,10 +21,12 @@ export default function AuctionHeader({
   auction, 
   isCreator, 
   myBid, 
-  mySecretValue,
+  mySecretValue, 
   onTransition, 
   onBid, 
-  onLoserProof, 
+  onReveal,      
+  onLoserProof,
+  isZkpChallenge,
   hasWinner 
 }: Props) {
   const isAuctionEnded = new Date() >= new Date(auction.end_time);
@@ -37,7 +39,6 @@ export default function AuctionHeader({
       const now = Date.now();
       const endTimeMs = new Date(auction.end_time).getTime();
 
-      // Manteniamo il cronometro SOLO durante la fase di sottomissione delle offerte
       if (auction.status === "BiddingOpen") {
         const diff = endTimeMs - now;
         if (diff <= 0) {
@@ -48,7 +49,6 @@ export default function AuctionHeader({
           setTimeRemainingStr(`Offerte: ${mins}m ${secs}s`);
         }
       } else {
-        // In qualsiasi altra fase (inclusa la ClaimPhase), il timer dell'header viene azzerato
         setTimeRemainingStr(""); 
       }
     };
@@ -79,13 +79,14 @@ export default function AuctionHeader({
         </div>
         
         <div className="flex flex-wrap gap-2 items-center">
+          
           {mySecretValue !== undefined && mySecretValue !== null && myBid && (
             <div className="bg-slate-800 border border-blue-500/30 px-3 py-1.5 rounded-lg flex items-center gap-2 mr-2">
               <span className="text-xs text-slate-400 uppercase tracking-wider">Your Bid:</span>
               <span className="font-mono font-bold text-blue-400">{mySecretValue} ₿</span>
             </div>
           )}
-          {/* Cronometro visualizzato solo durante la fase BiddingOpen */}
+
           {timeRemainingStr && (
             <div className="text-xs font-mono bg-slate-800/80 border border-slate-700 px-3 py-1.5 rounded-lg text-amber-400 font-semibold flex items-center gap-1.5 animate-pulse">
               <Clock size={12} className="text-amber-500" />
@@ -93,7 +94,6 @@ export default function AuctionHeader({
             </div>
           )}
 
-          {/* Il tasto Verify compare solo quando l'asta è pronta per l'audit pubblico */}
           {canVerify && (
             <Link href={`/auctions/${auction.id}/verify`} className="btn-secondary">
               <Eye size={14} /> Verify Publicly
@@ -107,9 +107,24 @@ export default function AuctionHeader({
           {!isCreator && auction.status === "BiddingOpen" && !myBid && !isAuctionEnded && (
             <button className="btn-primary" onClick={onBid}>Place Bid</button>
           )}
+
+          {onReveal && (
+            <button className="btn-primary flex items-center gap-1.5" onClick={onReveal}>
+              <Unlock size={14} /> Reveal Bid
+            </button>
+          )}
           
+          {/* BOTTONE ZKP DINAMICO */}
           {onLoserProof && (
-            <button className="btn-secondary" onClick={onLoserProof}><FileCheck size={14} /> Submit Proof</button>
+            <button 
+              className={cn(
+                "transition-all duration-200 flex items-center gap-1.5", 
+                isZkpChallenge ? "btn-primary bg-purple-600 hover:bg-purple-500 border-purple-500 shadow-lg shadow-purple-900/20 text-white" : "btn-secondary"
+              )} 
+              onClick={onLoserProof}
+            >
+              {isZkpChallenge ? <><ShieldAlert size={14} /> Silent Challenge</> : <><FileCheck size={14} /> Submit Proof</>}
+            </button>
           )}
         </div>
       </div>

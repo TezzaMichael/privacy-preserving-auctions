@@ -10,20 +10,45 @@ interface Props {
 }
 
 function Check({ passed, label, error }: { passed: boolean; label: string; error?: string | null }) {
+  const isTimeout = !passed && error && error.includes("Missing loser proofs");
+  
   return (
-    <div className={cn("flex items-start gap-3 p-3 rounded-lg", passed ? "bg-green-500/10" : "bg-red-500/10")}>
-      {passed
-        ? <CheckCircle size={18} className="text-green-400 shrink-0 mt-0.5" />
-        : <XCircle size={18} className="text-red-400 shrink-0 mt-0.5" />}
+    <div className={cn(
+      "flex items-start gap-3 p-3 rounded-lg", 
+      passed ? "bg-green-500/10" : isTimeout ? "bg-amber-500/10" : "bg-red-500/10"
+    )}>
+      {passed ? (
+        <CheckCircle size={18} className="text-green-400 shrink-0 mt-0.5" />
+      ) : isTimeout ? (
+        <AlertCircle size={18} className="text-amber-400 shrink-0 mt-0.5" />
+      ) : (
+        <XCircle size={18} className="text-red-400 shrink-0 mt-0.5" />
+      )}
+      
       <div>
-        <div className={cn("text-sm font-medium", passed ? "text-green-300" : "text-red-300")}>{label}</div>
-        {error && <div className="text-xs text-red-400 mt-0.5 mono">{error}</div>}
+        <div className={cn(
+          "text-sm font-medium", 
+          passed ? "text-green-300" : isTimeout ? "text-amber-300" : "text-red-300"
+        )}>
+          {isTimeout ? `${label} (Timeout)` : label}
+        </div>
+        {error && (
+          <div className={cn(
+            "text-xs mt-0.5 mono",
+            isTimeout ? "text-amber-400" : "text-red-400"
+          )}>
+            {isTimeout ? "Some participants did not submit their proofs in time. Expected proofs are missing." : error}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 export default function VerificationPanel({ result, loading, hasWasm, onVerify }: Props) {
+  const isTimeoutFail = result && !result.fully_valid && result.loser_proofs.error?.includes("Missing loser proofs");
+  const showAsSuccess = result && (result.fully_valid || isTimeoutFail);
+
   return (
     <div className="card">
       <div className="flex items-center justify-between mb-4">
@@ -39,11 +64,22 @@ export default function VerificationPanel({ result, loading, hasWasm, onVerify }
       )}
       {result ? (
         <div className="space-y-2">
-          <div className={cn("p-4 rounded-lg text-center mb-4", result.fully_valid ? "bg-green-500/10 border border-green-500/20" : "bg-red-500/10 border border-red-500/20")}>
-            {result.fully_valid
-              ? <div className="text-green-300 font-bold text-lg flex items-center justify-center gap-2"><CheckCircle size={20} /> Auction Fully Verified</div>
-              : <div className="text-red-300 font-bold text-lg flex items-center justify-center gap-2"><XCircle size={20} /> Verification Failed</div>}
+          <div className={cn(
+            "p-4 rounded-lg text-center mb-4 border", 
+            showAsSuccess ? "bg-green-500/10 border-green-500/20" : "bg-red-500/10 border-red-500/20"
+          )}>
+            {showAsSuccess ? (
+              <div className="text-green-300 font-bold text-lg flex items-center justify-center gap-2">
+                <CheckCircle size={20} /> 
+                {isTimeoutFail ? "Auction Partially Verified" : "Auction Fully Verified"}
+              </div>
+            ) : (
+              <div className="text-red-300 font-bold text-lg flex items-center justify-center gap-2">
+                <XCircle size={20} /> Verification Failed
+              </div>
+            )}
           </div>
+          
           <Check passed={result.chain_integrity.passed} label="Chain Integrity" error={result.chain_integrity.error} />
           <Check passed={result.server_signatures.passed} label="Server Signatures" error={result.server_signatures.error} />
           <Check passed={result.winner_proof.passed} label="Winner Proof" error={result.winner_proof.error} />

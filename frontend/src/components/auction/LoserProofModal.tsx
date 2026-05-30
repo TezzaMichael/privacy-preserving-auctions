@@ -4,82 +4,105 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { loadSecret } from "@/lib/crypto";
-import { createProofOfOpeningWasm, createLoserRangeProofWasm } from "@/lib/wasm"; 
+import { createLoserRangeProofWasm, createProofOfOpeningWasm } from "@/lib/wasm"; 
 import type { SealedBid, BidSecret } from "@/types";
 import Modal from "@/components/ui/Modal";
 
-interface Props {
-  auctionId: string; myBid: SealedBid; winnerValue: number;
-  onClose: () => void; onSuccess: () => void;
+interface Props { 
+  auctionId: string; 
+  myBid: SealedBid; 
+  winnerValue: number; 
+  onClose: () => void; 
+  onSuccess: () => void; 
 }
 
 export default function LoserProofModal({ auctionId, myBid, winnerValue, onClose, onSuccess }: Props) {
-  const { token } = useAuthStore();
+  const { token, secretKeyHex } = useAuthStore();
   const [secret, setSecret] = useState<BidSecret | null>(null);
+  const [manualValue, setManualValue] = useState("");
+  const [manualBlinding, setManualBlinding] = useState("");
   const [loading, setLoading] = useState(false);
+  
+  const hasCryptoKey = !!secretKeyHex;
+  const isIdentical = secret !== null && secret.value === winnerValue;
 
-  useEffect(() => { setSecret(loadSecret(auctionId)); }, [auctionId]);
+  useEffect(() => { 
+    setSecret(loadSecret(auctionId));
+  }, [auctionId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!token || !secret) return;
-    
-    if (secret.value > winnerValue) {
-      toast.error("Your value is greater than the winner's");
-      return;
-    }
-    
+    if (!token || !secretKeyHex) return;
+
+    const v = secret ? secret.value : parseInt(manualValue);
+    const b = secret ? secret.blinding_hex : manualBlinding;
+
     setLoading(true);
     try {
-      let realProof;
-      
-      if (secret.value === winnerValue) {
-        realProof = await createProofOfOpeningWasm(secret.value, secret.blinding_hex, myBid.commitment_hex);
+      if (isIdentical) {
+        const proofJson = await createProofOfOpeningWasm(v, b, myBid.commitment_hex);
+        if (!proofJson) throw new Error("Unable to generate tie proof.");
+        await api.proofs.revealWinner(token, auctionId, myBid.bid_id, v, proofJson);
       } else {
-        realProof = await createLoserRangeProofWasm(secret.value, secret.blinding_hex, winnerValue);
-      }
-      
-      if (!realProof) {
-        throw new Error("Failed to generate ZK Proof via WASM.");
+        const proofJson = await createLoserRangeProofWasm(v, b, winnerValue);
+        if (!proofJson) throw new Error("Unable to generate ZKP.");
+        await api.proofs.submitLoser(token, auctionId, myBid.bid_id, proofJson);
       }
 
-      await api.proofs.submitLoser(token, auctionId, myBid.bid_id, realProof);
-      toast.success(secret.value === winnerValue ? "Tie-breaker proof submitted" : "Loser proof submitted");
+      toast.success("Proof submitted and verified successfully.");
       onSuccess();
     } catch (err: any) {
-      toast.error(err.message);
+      toast.error(err.message || "Error submitting proof");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <Modal title="Submit Loser Proof" onClose={onClose}>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {secret ? (
-          <div className="space-y-2">
-            <div className="bg-surface-border/50 rounded-lg p-3 text-sm">
-              <div className="flex justify-between"><span className="text-slate-400">Your bid:</span><span className="font-semibold">{secret.value}</span></div>
-              <div className="flex justify-between mt-1"><span className="text-slate-400">Winner bid:</span><span className="font-semibold text-yellow-400">{winnerValue}</span></div>
-            </div>
-            {secret.value > winnerValue && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-sm text-red-400">
-                Your bid is greater than the winner's bid.
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 text-sm text-orange-300">
-            Secret not found in session storage. Cannot generate loser proof.
-          </div>
-        )}
-        <div className="flex gap-3">
-          <button type="submit" className="btn-primary flex-1 justify-center" disabled={loading || !secret || (secret?.value ?? 0) > winnerValue}>
-            {loading ? "Submitting…" : "Submit Loser Proof"}
-          </button>
-          <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+    <Modal title="Submit Proof of Loss" onClose={onClose}>
+      {!hasCryptoKey ? (
+        <div className="bg-yellow-500/10 border-l-4 border-yellow-500 p-4 mb-4 text-sm text-yellow-300 rounded">
+          <p className="font-bold text-yellow-400 mb-1">Session Expired</p>
+          <p>Please close this window, logout, and login again.</p>
         </div>
-      </form>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {secret ? (
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 text-sm text-slate-300">
+              <p className="mb-2">Your bid of <strong>{secret.value} ₿</strong> is ready for mathematical verification.</p>
+              {isIdentical ? (
+                <div className="bg-blue-500/10 border-l-2 border-blue-500 p-2 mt-2 text-xs text-blue-200">
+                  <span className="font-bold">Tie Note:</span> Your bid is identical to the winner's, but their Bulletin Board timestamp is earlier. Submit the proof to accept the loss.
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500 mt-2">
+                  The proof will mathematically demonstrate that your bid is lower than {winnerValue} ₿ without revealing it.
+                </p>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 text-sm text-orange-300">
+                Secret not found. Enter data manually.
+              </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">Bid Value</label>
+                <input className="input" type="number" value={manualValue} onChange={e => setManualValue(e.target.value)} required={!secret} />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">Blinding Hex</label>
+                <input className="input mono" value={manualBlinding} onChange={e => setManualBlinding(e.target.value)} required={!secret} placeholder="64-char hex" />
+              </div>
+            </>
+          )}
+          <div className="flex gap-3 pt-2">
+            <button type="submit" className="btn-primary flex-1 justify-center" disabled={loading}>
+              {loading ? "Generating ZKP..." : "Submit Loser Proof"}
+            </button>
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+          </div>
+        </form>
+      )}
     </Modal>
   );
 }

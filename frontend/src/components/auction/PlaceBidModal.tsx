@@ -20,30 +20,28 @@ export default function PlaceBidModal({ auction, onClose, onSuccess }: Props) {
   const [loading, setLoading] = useState(false);
   
   const auctionId = auction.id;
-  
-  // Variabile per verificare rapidamente la presenza della chiave privata
   const hasCryptoKey = !!secretKeyHex;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     
     if (!token || !secretKeyHex) {
-      toast.error("Chiave privata non trovata in memoria. Effettua il logout e reinserisci la password per ripristinare la sessione crittografica.");
+      toast.error("Private key not found in storage. Please logout and enter your password again to restore the cryptographic session.");
       return;
     }
     
     const bidValue = parseInt(value);
     
     if (isNaN(bidValue) || bidValue < auction.min_bid) {
-      toast.error(`L'offerta minima è ${auction.min_bid}`);
+      toast.error(`Minimum bid is ${auction.min_bid}`);
       return;
     }
     if (auction.max_bid !== null && bidValue > auction.max_bid) {
-      toast.error(`L'offerta massima è ${auction.max_bid}`);
+      toast.error(`Maximum bid is ${auction.max_bid}`);
       return;
     }
     if ((bidValue - auction.min_bid) % auction.bid_step !== 0) {
-      toast.error(`L'offerta non è valida. Devi rispettare il salto di ${auction.bid_step}.`);
+      toast.error(`Invalid bid. You must respect the step increment of ${auction.bid_step}.`);
       return;
     }
 
@@ -55,7 +53,7 @@ export default function PlaceBidModal({ auction, onClose, onSuccess }: Props) {
       const commitmentHex = await createCommitmentWasm(bidValue, blinding);
       
       if (!commitmentHex) {
-        throw new Error("Impossibile generare il commitment crittografico tramite WASM.");
+        throw new Error("Unable to generate cryptographic commitment via WASM.");
       }
      
       const sigHex = await signCommitment(
@@ -69,7 +67,7 @@ export default function PlaceBidModal({ auction, onClose, onSuccess }: Props) {
       
       await api.bids.submit(token, auctionId, commitmentHex, sigHex);
       
-      toast.success("Offerta inviata con successo!");
+      toast.success("Bid submitted successfully!");
       onSuccess();
     } catch (err: any) {
       toast.error(err.message);
@@ -82,15 +80,15 @@ export default function PlaceBidModal({ auction, onClose, onSuccess }: Props) {
     <Modal title="Place Sealed Bid" onClose={onClose}>
       {!hasCryptoKey ? (
         <div className="bg-yellow-500/10 border-l-4 border-yellow-500 p-4 mb-4 text-sm text-yellow-300 rounded">
-          <p className="font-bold text-yellow-400 mb-1">Sessione Crittografica Scaduta</p>
+          <p className="font-bold text-yellow-400 mb-1">Cryptographic Session Expired</p>
           <p className="mb-2">
-            Hai ricaricato la pagina. Per motivi di sicurezza, la tua chiave privata temporanea è stata rimossa dalla memoria del browser.
+            You reloaded the page. For security reasons, your temporary private key was removed from the browser's memory.
           </p>
           <p className="font-semibold">
-            Per favore, chiudi questa finestra, esegui il Logout e accedi di nuovo per ripristinare le funzioni di firma.
+            Please close this window, logout, and login again to restore signing capabilities.
           </p>
           <button type="button" className="btn-secondary w-full mt-4" onClick={onClose}>
-            Chiudi
+            Close
           </button>
         </div>
       ) : (

@@ -14,6 +14,7 @@ import BulletinBoardPanel from "@/components/auction/BulletinBoardPanel";
 import ProofsPanel from "@/components/auction/ProofsPanel";
 import PlaceBidModal from "@/components/auction/PlaceBidModal";
 import LoserProofModal from "@/components/auction/LoserProofModal";
+import RevealModal from "@/components/auction/RevealModal";
 
 export default function AuctionPage() {
   const { id } = useParams<{ id: string }>();
@@ -27,6 +28,7 @@ export default function AuctionPage() {
   
   const [showBidModal, setShowBidModal] = useState(false);
   const [showLoserModal, setShowLoserModal] = useState(false);
+  const [showRevealModal, setShowRevealModal] = useState(false);
 
   // Stati del Radar
   const [currentPollingPrice, setCurrentPollingPrice] = useState<number | null>(null);
@@ -85,7 +87,7 @@ export default function AuctionPage() {
     return () => clearInterval(interval);
   }, [auction?.status, id]);
 
-  // EFFETTO RADAR CON WARM-UP DI 2 MINUTI
+  // EFFETTO RADAR (2 Secondi a step)
   useEffect(() => {
     if (!auction || auction.status !== "ClaimPhase" || !auction.max_bid || winner) return;
     
@@ -115,10 +117,10 @@ export default function AuctionPage() {
         if (current <= limit) {
           setCurrentPollingPrice(limit);
           setPollingFailed(true);
-          // Invio chiusura forzata se il creatore sta osservando
-          if (user?.user_id === auction.creator_id) {
-             api.auctions.finalize(token!, id).then(() => load()).catch(() => {});
-          }
+          
+          // ❌ ELIMINATO: Il frontend NON DEVE MAI forzare la chiusura tramite API.
+          // Lasciamo che sia il backend (main.rs) a chiuderla se scatta il timeout vero e proprio.
+          
         } else {
           setCurrentPollingPrice(current);
         }
@@ -129,8 +131,8 @@ export default function AuctionPage() {
     const interval = setInterval(updatePrice, 1000);
     return () => clearInterval(interval);
   }, [auction?.status, winner, id]);
-
-  // AUTOMAZIONE INVISIBILE CALIBRATA
+  
+  // AUTOMAZIONE INVISIBILE CALIBRATA (Solo per il primo claim)
   const myBid = bids.find(b => b.bidder_id === user?.user_id);
   useEffect(() => {
     if (!auction || auction.status !== "ClaimPhase" || !myBid || !token || winner) return;
@@ -178,33 +180,6 @@ export default function AuctionPage() {
     return () => { if (autoRevealTimerRef.current) clearTimeout(autoRevealTimerRef.current); };
   }, [auction?.status, myBid, winner, id, token]);
 
-  useEffect(() => {
-    if (!auction || auction.status !== "ProofPhase" || !myBid || !token || !winner) return;
-    
-    if (mySecretValue !== null && mySecretValue > winner.revealed_value) {
-        const executeChallenge = async () => {
-            try {
-                toast.loading("Higher value detected! Taking over the lead...", { id: "challenge" });
-                const storedBidData = loadSecret(id);
-                
-                if (!storedBidData) throw new Error("Bid data lost from browser.");
-
-                const realProof = await createProofOfOpeningWasm(mySecretValue, storedBidData.blinding_hex, myBid.commitment_hex);
-                if (!realProof) throw new Error("Proof generation failed.");
-
-                // RISOLUZIONE BUG: Si usa revealWinner (che fa l'override nel backend), non submitLoser!
-                await api.proofs.revealWinner(token, id, myBid.bid_id, mySecretValue, realProof);
-                
-                toast.success("Challenge successful! You are the new provisional winner.", { id: "challenge" });
-                load();
-            } catch (err: any) {
-                toast.error(err.message || "Failed to challenge", { id: "challenge" });
-            }
-        };
-        executeChallenge();
-    }
-  }, [auction?.status, myBid, winner, mySecretValue, id, token]);
-
   async function transition(action: "open" | "close" | "finalize") {
     if (!token) return;
     try {
@@ -227,6 +202,8 @@ export default function AuctionPage() {
     b.bidder_id === winner?.winner_id
   );
 
+  const isZkpChallenge = mySecretValue !== null && winner !== null && Number(mySecretValue) > Number(winner.revealed_value);
+
   return (
     <div className="space-y-6">
       <AuctionHeader
@@ -237,41 +214,41 @@ export default function AuctionPage() {
         hasWinner={!!winner}
         onTransition={transition}
         onBid={() => setShowBidModal(true)}
+        
+        isZkpChallenge={isZkpChallenge}
+        onReveal={(
+          (auction.status === "ClaimPhase" && !winner && myBid) || 
+          (auction.status === "ProofPhase" && isZkpChallenge)
+        ) ? () => setShowRevealModal(true) : undefined}
+        
         onLoserProof={(
           auction.status === "ProofPhase" && 
+          winner && 
           !isCreator && 
           myBid && 
-          winner?.winner_id !== user?.user_id && 
-          !iAmLoserAndHaveProven
+          winner.winner_id !== user?.user_id && 
+          !iAmLoserAndHaveProven && 
+          !isZkpChallenge // Se è una sfida, nascondi questo bottone
         ) ? () => setShowLoserModal(true) : undefined}
       />
-      
-    
+
       {auction.status === "ProofPhase" && winner && (
         <div className={`border rounded-xl p-6 text-left shadow-lg transition-all duration-300 ${
           amIWinner 
             ? 'bg-emerald-950/40 border-emerald-500/50 shadow-emerald-900/20' 
-            : myBid 
-              ? 'bg-amber-950/40 border-amber-500/50 shadow-amber-900/20'
-              : 'bg-blue-950/40 border-blue-500/50 shadow-blue-900/20' // Observer/Creator styling
+            : 'bg-amber-950/40 border-amber-500/50 shadow-amber-900/20'
         }`}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className={`text-lg font-bold uppercase tracking-wider mb-1 flex items-center gap-2 ${
-                amIWinner 
-                  ? 'text-emerald-400' 
-                  : myBid 
-                    ? 'text-amber-400' 
-                    : 'text-blue-400'
+                amIWinner ? 'text-emerald-400' : 'text-amber-400'
               }`}>
                 {amIWinner ? '🎉 Provisional Winner' : '⚖️ Standing Update'}
               </h2>
               <p className="text-slate-200 text-sm">
                 {amIWinner 
                   ? "You are currently the winner! Wait for other participants' proofs or until the phase closes."
-                  : myBid
-                    ? "You are not the winner currently. If your bid is higher, submit a proof to challenge!"
-                    : "A provisional winner has been declared. Waiting for cryptographic proofs from other participants."
+                  : "You are not the winner currently. If your bid is higher, submit a proof to challenge!"
                 }
               </p>
             </div>
@@ -288,28 +265,18 @@ export default function AuctionPage() {
           hasValidWinner 
             ? amIWinner 
               ? 'bg-emerald-950/40 border-emerald-500/50 shadow-emerald-900/20' 
-              : myBid 
-                ? 'bg-rose-950/40 border-rose-500/50 shadow-rose-900/20'
-                : 'bg-blue-950/40 border-blue-500/50 shadow-blue-900/20' // Observer/Creator styling
+              : 'bg-rose-950/40 border-rose-500/50 shadow-rose-900/20'
             : 'bg-slate-800 border-slate-600 shadow-slate-900/20'
         }`}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className={`text-lg font-bold uppercase tracking-wider mb-1 flex items-center gap-2 ${
                 hasValidWinner 
-                  ? amIWinner 
-                    ? 'text-emerald-400' 
-                    : myBid 
-                      ? 'text-rose-400' 
-                      : 'text-blue-400'
+                  ? amIWinner ? 'text-emerald-400' : 'text-rose-400'
                   : 'text-slate-400'
               }`}>
                 {hasValidWinner 
-                  ? amIWinner 
-                    ? '🏆 YOU WON!' 
-                    : myBid 
-                      ? '❌ YOU LOST' 
-                      : '📢 AUCTION ENDED'
+                  ? amIWinner ? '🏆 YOU WON!' : '❌ YOU LOST' 
                   : '⚪ NO WINNER'
                 }
               </h2>
@@ -332,6 +299,54 @@ export default function AuctionPage() {
         </div>
       )}
 
+      {auction.status === "Closed" && !winner && (
+        <div className="border rounded-xl p-8 text-center shadow-lg bg-slate-900 border-red-500/30 shadow-red-900/20">
+          <h2 className="text-xl font-medium text-red-400 uppercase tracking-widest mb-2">Auction Closed</h2>
+          <div className="text-4xl font-bold text-white mb-2">No Winner</div>
+          <p className="text-slate-500 text-sm">No valid bids were claimed during the polling phase.</p>
+        </div>
+      )}
+      
+      {auction.status === "ClaimPhase" && !winner && (
+        <div className={`border rounded-xl p-8 text-center shadow-lg relative overflow-hidden transition-all duration-500 ${
+          countdownRemaining !== null ? 'bg-slate-900/60 border-amber-500/30 shadow-amber-900/10' :
+          pollingFailed ? 'bg-red-950/20 border-red-500/30 shadow-red-900/20' :
+          'bg-slate-900 border-blue-500/30 shadow-blue-900/20'
+        }`}>
+          {countdownRemaining !== null ? (
+            <>
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-50"></div>
+              <h2 className="text-xl font-medium text-amber-400 uppercase tracking-widest mb-2 flex items-center justify-center gap-2 animate-pulse">
+                Polling Preparation
+              </h2>
+              <div className="text-5xl font-mono font-bold text-white tracking-tight my-4">
+                Starts in: <span className="text-amber-400">{countdownRemaining}s</span>
+              </div>
+              <p className="text-xs text-slate-500 bg-surface border border-surface-border inline-block px-4 py-1 rounded-full">
+                Starting price is locked at <strong>{auction.max_bid} ₿</strong>.
+              </p>
+            </>
+          ) : pollingFailed ? (
+            <>
+              <h2 className="text-xl font-medium text-red-400 uppercase tracking-widest mb-2">Polling Ended</h2>
+              <div className="text-4xl font-bold text-white mb-4">No Winner</div>
+            </>
+          ) : (
+            <>
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50 animate-pulse"></div>
+              <h2 className="text-xl font-medium text-slate-400 uppercase tracking-widest mb-2 flex items-center justify-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping"></span>
+                Active Polling
+              </h2>
+              <div className="text-6xl font-mono font-bold text-white tracking-tight flex justify-center items-baseline gap-2">
+                <span className="text-blue-500 text-4xl">₿</span> 
+                {currentPollingPrice !== null ? currentPollingPrice : "---"}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <BidsPanel bids={visibleBids} currentUserId={user?.user_id} />
         <ProofsPanel winner={winner} losers={losers} bids={bids} />
@@ -340,6 +355,7 @@ export default function AuctionPage() {
       
       {showBidModal && <PlaceBidModal auction={auction} onClose={() => setShowBidModal(false)} onSuccess={() => { setShowBidModal(false); load(); }} />}
       {showLoserModal && myBid && <LoserProofModal auctionId={id} myBid={myBid} winnerValue={winner?.revealed_value ?? 0} onClose={() => setShowLoserModal(false)} onSuccess={() => { setShowLoserModal(false); load(); }} />}
+      {showRevealModal && myBid && <RevealModal auctionId={id} myBid={myBid} currentWinnerValue={winner?.revealed_value} onClose={() => setShowRevealModal(false)} onSuccess={() => { setShowRevealModal(false); load(); }} />}
     </div>
   );
 }

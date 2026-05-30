@@ -34,8 +34,6 @@ async fn main() -> anyhow::Result<()> {
 
     let state = Arc::new(AppState::new(pool, &cfg).await?);
 
-    // In privacy-preserving-auctions/crates/auction-server/src/main.rs
-
     // --- TASK IN BACKGROUND PER LA CHIUSURA AUTOMATICA DELLE ASTE ---
     let bg_state = state.clone();
     tokio::spawn(async move {
@@ -47,7 +45,7 @@ async fn main() -> anyhow::Result<()> {
                 let now = chrono::Utc::now();
                 for auc in auctions {
                     
-                    // 1. Timeout di fine asta: Gestione intelligente in base al numero di partecipanti
+                    // 1. GESTIONE FINE OFFERTE (BiddingOpen)
                     if auc.status == auction_core::enums::AuctionStatus::BiddingOpen && auc.end_time <= now {
                         tracing::info!("Checking bids for expired auction {}", auc.id);
                         
@@ -59,7 +57,6 @@ async fn main() -> anyhow::Result<()> {
                         if total_bids == 0 {
                             tracing::info!("Asta {} scaduta con 0 offerte. Chiusura sequenziale immediata.", auc.id);
                             
-                            // Eseguiamo l'intera catena di transizioni per soddisfare i vincoli di Rust
                             if bg_state.auction_service.system_transition(auc.id, auction_core::enums::AuctionStatus::ClaimPhase).await.is_ok() {
                                 let _ = bg_state.auction_service.system_transition(auc.id, auction_core::enums::AuctionStatus::ProofPhase).await;
                                 if bg_state.auction_service.system_transition(auc.id, auction_core::enums::AuctionStatus::Closed).await.is_ok() {
@@ -75,25 +72,7 @@ async fn main() -> anyhow::Result<()> {
                                     ).await;
                                 }
                             }
-                        } else if auc.status == auction_core::enums::AuctionStatus::ClaimPhase 
-                         && now.signed_duration_since(auc.end_time).num_minutes() >= 5 
-                    {
-                        tracing::info!("ClaimPhase timeout reached for auction {} (No reveals). Closing.", auc.id);
-                        
-                        if bg_state.auction_service.system_transition(auc.id, auction_core::enums::AuctionStatus::Closed).await.is_ok() {
-                            let payload = serde_json::json!({ 
-                                "auction_id": auc.id, 
-                                "reason": "claim_phase_timeout",
-                                "note": "Il polling è terminato ma nessun utente ha rivendicato la vittoria."
-                            });
-                            let _ = bg_state.bulletin_board_service.append(
-                                auc.id,
-                                auction_core::bulletin_board::EntryKind::AuctionFinalize,
-                                payload,
-                                &bg_state.server_signer
-                            ).await;
-                        }
-                    } else {
+                        } else {
                             // CASO CON OFFERTE: Avvia regolarmente il Polling (ClaimPhase)
                             tracing::info!("Asta {} ha {} offerte. Avvio della ClaimPhase.", auc.id, total_bids);
                             if bg_state.auction_service.system_transition(auc.id, auction_core::enums::AuctionStatus::ClaimPhase).await.is_ok() {
@@ -104,6 +83,46 @@ async fn main() -> anyhow::Result<()> {
                                 let _ = bg_state.bulletin_board_service.append(
                                     auc.id,
                                     auction_core::bulletin_board::EntryKind::AuctionClose,
+                                    payload,
+                                    &bg_state.server_signer
+                                ).await;
+                            }
+                        }
+                    } 
+                    // 2. TIMEOUT CLAIM PHASE (Indipendente dal BiddingOpen, timeout a 5 min)
+                    else if auc.status == auction_core::enums::AuctionStatus::ClaimPhase {
+                        if now.signed_duration_since(auc.end_time).num_minutes() >= 5 {
+                            tracing::info!("ClaimPhase timeout reached for auction {} (No reveals). Closing.", auc.id);
+                            
+                            if bg_state.auction_service.system_transition(auc.id, auction_core::enums::AuctionStatus::Closed).await.is_ok() {
+                                let payload = serde_json::json!({ 
+                                    "auction_id": auc.id, 
+                                    "reason": "claim_phase_timeout",
+                                    "note": "Il polling è terminato ma nessun utente ha rivendicato la vittoria."
+                                });
+                                let _ = bg_state.bulletin_board_service.append(
+                                    auc.id,
+                                    auction_core::bulletin_board::EntryKind::AuctionFinalize,
+                                    payload,
+                                    &bg_state.server_signer
+                                ).await;
+                            }
+                        }
+                    } 
+                    // 3. TIMEOUT PROOF PHASE (Indipendente, aspetta 60 minuti reali per le prove)
+                    else if auc.status == auction_core::enums::AuctionStatus::ProofPhase {
+                        if now.signed_duration_since(auc.end_time).num_minutes() >= 60 {
+                            tracing::info!("ProofPhase timeout reached for auction {} (Missing Loser Proofs). Closing.", auc.id);
+                            
+                            if bg_state.auction_service.system_transition(auc.id, auction_core::enums::AuctionStatus::Closed).await.is_ok() {
+                                let payload = serde_json::json!({ 
+                                    "auction_id": auc.id, 
+                                    "reason": "proof_phase_timeout",
+                                    "note": "Il tempo per le prove di sottomissione (Loser Proofs) è scaduto."
+                                });
+                                let _ = bg_state.bulletin_board_service.append(
+                                    auc.id,
+                                    auction_core::bulletin_board::EntryKind::AuctionFinalize,
                                     payload,
                                     &bg_state.server_signer
                                 ).await;

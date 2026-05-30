@@ -22,7 +22,7 @@ use chrono::Utc;
 
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
-        .route("/auctions/:id/reveal",       post(reveal_winner).get(get_winner_reveal))
+        .route("/auctions/:id/reveal", post(reveal_winner).get(get_winner_reveal))
         .route("/auctions/:id/loser-proofs", post(submit_loser_proof).get(list_loser_proofs))
 }
 
@@ -32,37 +32,43 @@ async fn reveal_winner(
     Path(auction_id): Path<Uuid>,
     Json(req): Json<RevealWinnerRequest>,
 ) -> ApiResult<Json<RevealWinnerResponse>> {
-    state.auction_service.require_status(auction_id, &AuctionStatus::ClaimPhase).await?;
-
+    
     let auction = state.auction_service.get(auction_id).await?;
-    let now = chrono::Utc::now();
-    let claim_start_time = auction.end_time;
-    
-    let max_bid = auction.max_bid.unwrap_or(0) as i64; 
-    let bid_step = auction.bid_step as i64;
-    let seconds_per_step = 2;
-    let warm_up_seconds = 60; 
-    let elapsed_seconds = now.signed_duration_since(claim_start_time).num_seconds().max(0);
-    
-    let current_polling_price = if elapsed_seconds < warm_up_seconds {
-        max_bid
-    } else {
-        let elapsed_after_warmup = elapsed_seconds - warm_up_seconds;
-        let steps_passed = elapsed_after_warmup / seconds_per_step;
-        max_bid - (steps_passed * bid_step)
-    };
-    
-    let upper_bound = current_polling_price + bid_step;
-    let lower_bound = current_polling_price - bid_step;
+    if auction.status != AuctionStatus::ClaimPhase && auction.status != AuctionStatus::ProofPhase {
+        return Err(AuctionError::Internal("Auction is not in claim or proof phase.".into()).into());
+    }
+
+    let current_winner_opt = state.proof_service.get_winner_reveal(auction_id).await?;
     let revealed_val = req.revealed_value as i64;
 
-    if revealed_val > upper_bound || revealed_val < lower_bound {
-        return Err(AuctionError::Internal(
-            format!(
-                "Richiesta fuori sincrono! Il polling attuale è a {}. Tu hai dichiarato {}.", 
-                current_polling_price, req.revealed_value
-            ).into()
-        ).into());
+    if current_winner_opt.is_none() {
+        let now = chrono::Utc::now();
+        let claim_start_time = auction.end_time;
+        let max_bid = auction.max_bid.unwrap_or(0) as i64;
+        let bid_step = auction.bid_step as i64;
+        let seconds_per_step = 2; 
+        let warm_up_seconds = 60; 
+        let elapsed_seconds = now.signed_duration_since(claim_start_time).num_seconds().max(0);
+        
+        let current_polling_price = if elapsed_seconds < warm_up_seconds {
+            max_bid
+        } else {
+            let elapsed_after_warmup = elapsed_seconds - warm_up_seconds;
+            let steps_passed = elapsed_after_warmup / seconds_per_step;
+            max_bid - (steps_passed * bid_step)
+        };
+        
+        let upper_bound = current_polling_price + bid_step;
+        let lower_bound = current_polling_price - bid_step;
+
+        if revealed_val > upper_bound || revealed_val < lower_bound {
+            return Err(AuctionError::Internal(
+                format!(
+                    "Out of sync request! Current polling is at {}. You declared {}.",
+                    current_polling_price, req.revealed_value
+                ).into()
+            ).into());
+        }
     }
 
     let bid = state.bid_service.get_by_id(req.bid_id).await?;
@@ -70,14 +76,13 @@ async fn reveal_winner(
         return Err(AuctionError::BidderNotInAuction(user_id, auction_id).into());
     }
     if bid.bidder_id != user_id {
-        return Err(AuctionError::NotCreator.into());
+        return Err(AuctionError::Internal("Unauthorized action.".into()).into());
     }
 
     let mut retries = 0;
     
-    loop {
+    let entry = loop {
         let current_winner_opt = state.proof_service.get_winner_reveal(auction_id).await?;
-        
         let mut is_winner = true;
         let mut oust_current = false;
 
@@ -99,7 +104,6 @@ async fn reveal_winner(
             }
         }
 
-        // BRANCH 1: Incoming bidder loses (lower bid, or lost tie-breaker).
         if !is_winner {
             let winner_val = current_winner_opt.as_ref().unwrap().revealed_value;
             let record = state.proof_service.submit_loser_proof(
@@ -122,7 +126,6 @@ async fn reveal_winner(
             }));
         }
 
-        // BRANCH 2: Incoming bidder wins against current winner.
         if oust_current {
             let old_winner = current_winner_opt.unwrap();
             let old_bid = state.bid_service.get_by_id(old_winner.bid_id).await?;
@@ -133,7 +136,6 @@ async fn reveal_winner(
             ).await {
                 Ok(r) => r,
                 Err(e) => {
-                    // Abort if the math is wrong. Otherwise, assume DB collision and loop.
                     if matches!(e, AuctionError::InvalidProof | AuctionError::InvalidCommitment) {
                         return Err(e.into());
                     }
@@ -144,7 +146,6 @@ async fn reveal_winner(
                 }
             };
 
-            // Note: Reordered to only push the loser proof for the old winner AFTER the override succeeds.
             let loser_record = state.proof_service.submit_loser_proof(
                 auction_id, old_winner.winner_id, old_winner.bid_id, old_winner.proof_json.clone(),
                 &old_bid.commitment_hex, req.revealed_value as i64,
@@ -161,20 +162,19 @@ async fn reveal_winner(
                 reveal_id: record.id, auction_id, winner_id: user_id, bid_id: bid.id,
                 revealed_value: record.revealed_value, proof_json: req.proof_json,
             })?;
-            let entry = state.bulletin_board_service.append(
+            let bb_entry = state.bulletin_board_service.append(
                 auction_id, auction_core::bulletin_board::EntryKind::WinnerReveal, payload, &state.server_signer
             ).await?;
-            state.proof_service.update_winner_bb_sequence(record.id, entry.sequence).await?;
+            state.proof_service.update_winner_bb_sequence(record.id, bb_entry.sequence).await?;
             
             check_auto_close(&state, auction_id).await;
 
             return Ok(Json(RevealWinnerResponse {
                 reveal_id: record.id, winner_id: user_id, revealed_value: record.revealed_value,
-                bb_entry_hash_hex: entry.entry_hash_hex, bb_sequence: Some(entry.sequence),
+                bb_entry_hash_hex: bb_entry.entry_hash_hex, bb_sequence: Some(bb_entry.sequence),
             }));
         }
 
-        // BRANCH 3: Standard path (No current winner exists yet).
         let record = match state.proof_service.submit_winner_reveal(
             auction_id, user_id, bid.id, req.revealed_value, req.proof_json.clone(), &bid.commitment_hex, &state.pedersen_generators,
         ).await {
@@ -194,18 +194,34 @@ async fn reveal_winner(
             reveal_id: record.id, auction_id, winner_id: user_id, bid_id: bid.id,
             revealed_value: record.revealed_value, proof_json: req.proof_json,
         })?;
-        let entry = state.bulletin_board_service.append(
+        let bb_entry = state.bulletin_board_service.append(
             auction_id, auction_core::bulletin_board::EntryKind::WinnerReveal, payload, &state.server_signer
         ).await?;
-        state.proof_service.update_winner_bb_sequence(record.id, entry.sequence).await?;
+        state.proof_service.update_winner_bb_sequence(record.id, bb_entry.sequence).await?;
 
-        check_auto_close(&state, auction_id).await;
+        break (record, bb_entry);
+    };
 
-        return Ok(Json(RevealWinnerResponse {
-            reveal_id: record.id, winner_id: user_id, revealed_value: record.revealed_value,
-            bb_entry_hash_hex: entry.entry_hash_hex, bb_sequence: Some(entry.sequence),
-        }));
+    if let Ok(all_bids) = state.bid_service.list_by_auction(auction_id).await {
+        if all_bids.len() <= 1 {
+            let _ = state.auction_service.system_transition(auction_id, AuctionStatus::ProofPhase).await;
+            if state.auction_service.system_transition(auction_id, AuctionStatus::Closed).await.is_ok() {
+                let final_payload = serde_json::json!({
+                    "auction_id": auction_id, "verified_winner_id": user_id, "total_bids": all_bids.len()
+                });
+                let _ = state.bulletin_board_service.append(
+                    auction_id, auction_core::bulletin_board::EntryKind::AuctionFinalize, final_payload, &state.server_signer
+                ).await;
+            }
+        } else {
+            let _ = state.auction_service.system_transition(auction_id, AuctionStatus::ProofPhase).await;
+        }
     }
+
+    Ok(Json(RevealWinnerResponse {
+        reveal_id: entry.0.id, winner_id: user_id, revealed_value: entry.0.revealed_value,
+        bb_entry_hash_hex: entry.1.entry_hash_hex, bb_sequence: Some(entry.1.sequence),
+    }))
 }
 
 async fn get_winner_reveal(
@@ -233,7 +249,7 @@ async fn submit_loser_proof(
     }
 
     let winner = state.proof_service.get_winner_reveal(auction_id).await?
-        .ok_or_else(|| AuctionError::Internal("no winner reveal".into()))?;
+        .ok_or_else(|| AuctionError::Internal("No winner reveal found.".into()))?;
 
     if winner.winner_id == user_id {
         return Err(AuctionError::Internal("The verified winner cannot submit a loser proof.".into()).into());
@@ -246,31 +262,21 @@ async fn submit_loser_proof(
     );
 
     match verification_result {
-        Ok(()) => {
-            // Normal loser or tie-breaker: proceed as usual
-        }
+        Ok(()) => {}
         Err(auction_verifier::loser::LoserVerifyError::BidGreaterThanWinner) => {
-            // The auction state is invalid.
-            
-            // Revert the phase
             state.auction_service.system_transition(auction_id, AuctionStatus::ClaimPhase).await?;
-            
-            // Wipe the invalid winner 
             state.proof_service.delete_winner(auction_id).await?;
-            
-            // Wipe all existing loser proofs (they proved against the wrong winner)
             state.proof_service.delete_all_loser_proofs(auction_id).await?;
             
-            // Log the revert to the Bulletin Board
             let payload = serde_json::json!({
                 "auction_id": auction_id,
                 "challenger_id": user_id,
                 "reason": "valid_higher_bid_discovered"
             });
             let _ = state.bulletin_board_service.append(
-                auction_id, 
-                auction_core::bulletin_board::EntryKind::AuctionReverted, 
-                payload, 
+                auction_id,
+                auction_core::bulletin_board::EntryKind::AuctionReverted,
+                payload,
                 &state.server_signer
             ).await?;
 
@@ -303,28 +309,7 @@ async fn submit_loser_proof(
         .append(auction_id, auction_core::bulletin_board::EntryKind::LoserProof, payload, &state.server_signer)
         .await?;
 
-    // OTTIMIZZAZIONE: Se tutti i perdenti hanno inviato la prova, chiudiamo l'asta subito
-    if let Ok(all_bids) = state.bid_service.list_by_auction(auction_id).await {
-        if let Ok(all_proofs) = state.proof_service.get_loser_proofs(auction_id).await {
-            // Se le prove inviate coprono tutti i bid (tranne 1, che è il vincitore)
-            if all_proofs.len() >= all_bids.len().saturating_sub(1) {
-                tracing::info!("Tutti i perdenti hanno inviato la prova per {}. Chiusura asta immediata.", auction_id);
-                
-                if state.auction_service.system_transition(auction_id, AuctionStatus::Closed).await.is_ok() {
-                    let final_payload = serde_json::json!({ 
-                        "auction_id": auction_id, 
-                        "reason": "all_loser_proofs_submitted" 
-                    });
-                    let _ = state.bulletin_board_service.append(
-                        auction_id,
-                        auction_core::bulletin_board::EntryKind::AuctionFinalize,
-                        final_payload,
-                        &state.server_signer
-                    ).await;
-                }
-            }
-        }
-    }
+    check_auto_close(&state, auction_id).await;
 
     Ok(Json(LoserProofResponse::from(record)))
 }
@@ -346,7 +331,7 @@ async fn check_auto_close(state: &Arc<AppState>, auction_id: Uuid) {
         if all_bids.len() <= 1 {
             let _ = state.auction_service.system_transition(auction_id, AuctionStatus::ProofPhase).await;
             if state.auction_service.system_transition(auction_id, AuctionStatus::Closed).await.is_ok() {
-                let final_payload = serde_json::json!({ 
+                let final_payload = serde_json::json!({
                     "auction_id": auction_id, "reason": "single_bidder_auto_close"
                 });
                 let _ = state.bulletin_board_service.append(
@@ -360,8 +345,8 @@ async fn check_auto_close(state: &Arc<AppState>, auction_id: Uuid) {
             if total_proofs >= all_bids.len() {
                 let _ = state.auction_service.system_transition(auction_id, AuctionStatus::ProofPhase).await;
                 if state.auction_service.system_transition(auction_id, AuctionStatus::Closed).await.is_ok() {
-                    let final_payload = serde_json::json!({ 
-                        "auction_id": auction_id, "reason": "all_proofs_submitted" 
+                    let final_payload = serde_json::json!({
+                        "auction_id": auction_id, "reason": "all_proofs_submitted"
                     });
                     let _ = state.bulletin_board_service.append(
                         auction_id, auction_core::bulletin_board::EntryKind::AuctionFinalize, final_payload, &state.server_signer

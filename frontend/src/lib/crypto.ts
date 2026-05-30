@@ -28,6 +28,7 @@ function encodeLength(n: number, bytes: 4 | 8): Uint8Array {
   return new Uint8Array(buf);
 }
 
+// FORMATO CRITTOGRAFICO RIGOROSO RICHIESTO DAL BACKEND RUST
 async function commitmentMessage(auctionIdBytes: Uint8Array, commitmentHex: string): Promise<Uint8Array> {
   const domain = new TextEncoder().encode("auction-bid-commitment-v1:");
   const chBytes = new TextEncoder().encode(commitmentHex);
@@ -42,58 +43,35 @@ async function commitmentMessage(auctionIdBytes: Uint8Array, commitmentHex: stri
   const buf = new Uint8Array(total);
   let off = 0;
   for (const p of parts) { buf.set(p, off); off += p.length; }
+  
+  // Hash SHA-256 essenziale prima della firma
   return sha256(buf);
 }
 
-export async function importEd25519PrivateKey(secretHex: string): Promise<CryptoKey> {
-  const raw = fromHex(secretHex);
-  return crypto.subtle.importKey("raw", raw as BufferSource, { name: "Ed25519" }, false, ["sign"]);
+export function generateBidSecret(auctionId: string, value: number): BidSecret {
+  return {
+    auction_id: auctionId,
+    value,
+    blinding_hex: toHex(randomBytes(32)),
+    commitment_hex: "", // Aggiunto per soddisfare TypeScript
+  };
 }
 
 export async function signCommitment(
-  privateKeyHex: string,
+  secretKeyHex: string,
   auctionId: string,
   commitmentHex: string
 ): Promise<string> {
+  // Il server vuole l'ID dell'asta trasformato in byte rimuovendo i trattini
   const auctionIdBytes = fromHex(auctionId.replace(/-/g, ""));
   
   const msg = await commitmentMessage(auctionIdBytes, commitmentHex);
-  const privateKeyBytes = fromHex(privateKeyHex);
+  const privateKeyBytes = fromHex(secretKeyHex);
   const signature = ed25519.sign(msg, privateKeyBytes);
   
   return toHex(signature);
 }
 
-export function generateBlinding(): string {
-  return toHex(randomBytes(32));
-}
-
-export function storeSecret(secret: BidSecret): void {
-  const key = `bid_secret_${secret.auction_id}`;
-  sessionStorage.setItem(key, JSON.stringify(secret));
-}
-
-export function loadSecret(auctionId: string): BidSecret | null {
-  const raw = sessionStorage.getItem(`bid_secret_${auctionId}`);
-  return raw ? JSON.parse(raw) : null;
-}
-
-export function listSecretAuctionIds(): string[] {
-  return Object.keys(sessionStorage)
-    .filter(k => k.startsWith("bid_secret_"))
-    .map(k => k.replace("bid_secret_", ""));
-}
-
-/**
- * TRADE-OFF SICUREZZA vs USABILITÀ (Nota per la presentazione):
- * In questo progetto, la chiave Ed25519 viene derivata deterministicamente
- * da (password, username) usando PBKDF2-SHA256. 
- * Questo permette un'ottima UX per la demo (l'utente non deve gestire chiavi esportate),
- * ma è crittograficamente debole: non essendoci entropia aggiuntiva, se la password è debole
- * la chiave può essere ricostruita tramite brute-force.
- * In un sistema reale di produzione si utilizzerebbe una chiave randomica 
- * gestita tramite seed phrase, un wallet esterno o meccanismi di key escrow.
- */
 export async function deriveKeypairFromPassword(password: string, username: string): Promise<{ publicKeyHex: string, secretKeyHex: string }> {
   const enc = new TextEncoder();
   
@@ -122,7 +100,23 @@ export async function deriveKeypairFromPassword(password: string, username: stri
   const pubKey = ed25519.getPublicKey(privKey);
 
   return {
-    secretKeyHex: Array.from(privKey).map(b => b.toString(16).padStart(2, "0")).join(""),
-    publicKeyHex: Array.from(pubKey).map(b => b.toString(16).padStart(2, "0")).join("")
+    secretKeyHex: toHex(privKey),
+    publicKeyHex: toHex(pubKey),
   };
+}
+
+export function storeSecret(secret: BidSecret): void {
+  const key = `bid_secret_${secret.auction_id}`;
+  sessionStorage.setItem(key, JSON.stringify(secret));
+}
+
+export function loadSecret(auctionId: string): BidSecret | null {
+  const raw = sessionStorage.getItem(`bid_secret_${auctionId}`);
+  return raw ? JSON.parse(raw) : null;
+}
+
+export function listSecretAuctionIds(): string[] {
+  return Object.keys(sessionStorage)
+    .filter(k => k.startsWith("bid_secret_"))
+    .map(k => k.replace("bid_secret_", ""));
 }

@@ -8,42 +8,44 @@ import { createProofOfOpeningWasm } from "@/lib/wasm";
 import type { SealedBid, BidSecret } from "@/types";
 import Modal from "@/components/ui/Modal";
 
-interface Props { auctionId: string; myBid: SealedBid; onClose: () => void; onSuccess: () => void; }
+interface Props { 
+  auctionId: string; 
+  myBid: SealedBid; 
+  currentWinnerValue?: number; 
+  onClose: () => void; 
+  onSuccess: () => void; 
+}
 
-export default function RevealModal({ auctionId, myBid, onClose, onSuccess }: Props) {
+export default function RevealModal({ auctionId, myBid, currentWinnerValue, onClose, onSuccess }: Props) {
   const { token, secretKeyHex } = useAuthStore();
   const [secret, setSecret] = useState<BidSecret | null>(null);
   const [manualValue, setManualValue] = useState("");
   const [manualBlinding, setManualBlinding] = useState("");
   const [loading, setLoading] = useState(false);
   
-  // Stati per gestire l'interfaccia dell'automazione
   const [autoSubmitting, setAutoSubmitting] = useState(false);
   const autoSubmitAttempted = useRef(false);
 
   const hasCryptoKey = !!secretKeyHex;
+  const isChallenge = currentWinnerValue !== undefined && secret !== null && secret.value > currentWinnerValue;
 
   useEffect(() => { 
     const loadedSecret = loadSecret(auctionId);
     setSecret(loadedSecret);
 
-    // PILOTA AUTOMATICO: Se la chiave c'è e il segreto è in memoria, facciamo tutto da soli!
-    if (loadedSecret && hasCryptoKey && !autoSubmitAttempted.current) {
+    if (loadedSecret && hasCryptoKey && !autoSubmitAttempted.current && currentWinnerValue === undefined) {
       autoSubmitAttempted.current = true;
       setAutoSubmitting(true);
       
-      // Aggiungiamo un ritardo di 1.5 secondi solo per la UX, 
-      // così l'utente fa in tempo a leggere cosa sta succedendo sullo schermo
       setTimeout(() => {
         performReveal(loadedSecret.value, loadedSecret.blinding_hex);
       }, 1500);
     }
-  }, [auctionId, hasCryptoKey]);
+  }, [auctionId, hasCryptoKey, currentWinnerValue]);
 
-  // La logica core è stata estratta per poter essere chiamata sia in automatico che manualmente
   async function performReveal(value: number, blinding: string) {
     if (!token || !secretKeyHex) {
-      toast.error("Sessione crittografica non valida in memoria. Effettua il logout e reinserisci la password.");
+      toast.error("Invalid cryptographic session. Please logout and login again.");
       return;
     }
 
@@ -51,18 +53,15 @@ export default function RevealModal({ auctionId, myBid, onClose, onSuccess }: Pr
     try {
       const realProof = await createProofOfOpeningWasm(value, blinding, myBid.commitment_hex);
       if (!realProof) {
-        throw new Error("Impossibile generare il proof crittografico di apertura tramite WASM.");
+        throw new Error("Unable to generate cryptographic proof via WASM.");
       }
 
       await api.proofs.revealWinner(token, auctionId, myBid.bid_id, value, realProof);
-      toast.success("Rivendicazione inviata con successo!");
+      toast.success(isChallenge ? "Challenge successful! You are the new winner." : "Claim submitted successfully!");
       onSuccess();
     } catch (err: any) {
-      // Gestione degli errori specifica per il polling asincrono
-      if (err.message.includes("Troppo presto") || err.message.includes("fuori sincrono")) {
-        toast.error("Il server ha rifiutato la richiesta per mancata sincronizzazione temporale. Riprova.");
-      } else if (err.message.includes("già") || err.message.includes("closed") || err.message.includes("submitted")) {
-        toast.error("Impossibile rivelare: un altro utente ha già rivendicato la vittoria con un'offerta maggiore o uguale.");
+      if (err.message.includes("fuori sincrono") || err.message.includes("out of sync")) {
+        toast.error("Out of sync with the polling radar. Please try again.");
       } else {
         toast.error(err.message);
       }
@@ -72,7 +71,6 @@ export default function RevealModal({ auctionId, myBid, onClose, onSuccess }: Pr
     }
   }
 
-  // Fallback per l'invio manuale nel caso in cui il sessionStorage sia vuoto
   async function handleManualReveal(e: React.FormEvent) {
     e.preventDefault();
     const v = secret ? secret.value : parseInt(manualValue);
@@ -81,41 +79,41 @@ export default function RevealModal({ auctionId, myBid, onClose, onSuccess }: Pr
   }
 
   return (
-    <Modal title="Rivendicazione Offerta (Reveal)" onClose={onClose}>
+    <Modal title={isChallenge ? "Challenge Winner" : "Reveal Bid Claim"} onClose={onClose}>
       {!hasCryptoKey ? (
         <div className="bg-yellow-500/10 border-l-4 border-yellow-500 p-4 mb-4 text-sm text-yellow-300 rounded">
-          <p className="font-bold text-yellow-400 mb-1">Sessione Crittografica Scaduta</p>
-          <p className="mb-2">
-            Hai ricaricato la pagina. Per motivi di sicurezza, la tua sessione crittografica temporanea è stata rimossa dalla memoria.
-          </p>
-          <p className="font-semibold">
-            Chiudi questa finestra, esegui il Logout e accedi di nuovo per ripristinare le funzioni dell'asta.
-          </p>
-          <button type="button" className="btn-secondary w-full mt-4" onClick={onClose}>
-            Chiudi
-          </button>
+          <p className="font-bold text-yellow-400 mb-1">Session Expired</p>
+          <p>Please close this window, logout, and login again.</p>
         </div>
       ) : autoSubmitting ? (
         <div className="py-8 text-center flex flex-col items-center space-y-4">
           <div className="w-12 h-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
           <div>
-            <h3 className="text-lg font-medium text-slate-200">Elaborazione Automatica...</h3>
-            <p className="text-sm text-slate-400 mt-2">
-              Generazione della prova Zero-Knowledge in corso per la tua offerta da <strong>{secret?.value}</strong>.
-              <br />Non chiudere la finestra.
-            </p>
+            <h3 className="text-lg font-medium text-slate-200">Processing Automatically...</h3>
+            <p className="text-sm text-slate-400 mt-2">Generating cryptographic proof.</p>
           </div>
         </div>
       ) : (
         <form onSubmit={handleManualReveal} className="space-y-4">
-          {secret ? (
+          {isChallenge ? (
+            <div className="bg-purple-500/10 border border-purple-500/30 shadow-inner shadow-purple-500/10 rounded-xl p-4 text-sm text-purple-200">
+              <h3 className="font-bold text-purple-400 text-base mb-2 flex items-center gap-2">
+                🚨 Challenge Available!
+              </h3>
+              <p className="mb-2">
+                The current provisional winner has declared <strong>{currentWinnerValue} ₿</strong>. 
+                Your encrypted bid is <strong className="text-white bg-purple-900/50 px-1 rounded">{secret?.value} ₿</strong>.
+              </p>
+              <p className="text-purple-300/80">Click the button below to generate the proof and take the lead.</p>
+            </div>
+          ) : secret ? (
             <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3 text-sm text-green-300">
-              Segreto recuperato dalla memoria sicura. Valore: <strong>{secret.value}</strong>
+              Secret retrieved from secure storage. Value: <strong>{secret.value}</strong>
             </div>
           ) : (
             <>
               <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 text-sm text-orange-300">
-                Segreto non trovato in memoria. Inserisci manualmente i dati crittografici.
+                Secret not found in storage. Enter cryptographic data manually.
               </div>
               <div>
                 <label className="block text-sm text-slate-400 mb-1">Bid Value</label>
@@ -127,11 +125,11 @@ export default function RevealModal({ auctionId, myBid, onClose, onSuccess }: Pr
               </div>
             </>
           )}
-          <div className="flex gap-3">
-            <button type="submit" className="btn-primary flex-1 justify-center" disabled={loading}>
-              {loading ? "Invio in corso…" : "Invia Rivelazione"}
+          <div className="flex gap-3 pt-2">
+            <button type="submit" className={isChallenge ? "btn-primary bg-purple-600 hover:bg-purple-500 flex-1 justify-center border-purple-500" : "btn-primary flex-1 justify-center"} disabled={loading}>
+              {loading ? "Generating Proof..." : isChallenge ? "🚀 Launch Challenge" : "Submit Reveal"}
             </button>
-            <button type="button" className="btn-secondary" onClick={onClose}>Annulla</button>
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
           </div>
         </form>
       )}
