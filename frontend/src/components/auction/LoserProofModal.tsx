@@ -4,8 +4,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { loadSecret } from "@/lib/crypto";
-import { createProofOfOpeningWasm } from "@/lib/wasm"; 
-import { createLoserRangeProofWasm } from "@/lib/wasm";
+import { createProofOfOpeningWasm, createLoserRangeProofWasm } from "@/lib/wasm"; 
 import type { SealedBid, BidSecret } from "@/types";
 import Modal from "@/components/ui/Modal";
 
@@ -24,21 +23,28 @@ export default function LoserProofModal({ auctionId, myBid, winnerValue, onClose
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!token || !secret) return;
-    if (secret.value >= winnerValue) {
-      toast.error("Your value is not less than the winner's");
+    
+    if (secret.value > winnerValue) {
+      toast.error("Your value is greater than the winner's");
       return;
     }
+    
     setLoading(true);
     try {
-      // Generazione del vero proof crittografico tramite WASM
-      // const realProof = await createProofOfOpeningWasm(secret.value, secret.blinding_hex, myBid.commitment_hex);
-      const realProof = await createLoserRangeProofWasm(secret.value, secret.blinding_hex, winnerValue);
+      let realProof;
+      
+      if (secret.value === winnerValue) {
+        realProof = await createProofOfOpeningWasm(secret.value, secret.blinding_hex, myBid.commitment_hex);
+      } else {
+        realProof = await createLoserRangeProofWasm(secret.value, secret.blinding_hex, winnerValue);
+      }
+      
       if (!realProof) {
-        throw new Error("Impossibile generare il proof di sottomissione tramite WASM.");
+        throw new Error("Failed to generate ZK Proof via WASM.");
       }
 
       await api.proofs.submitLoser(token, auctionId, myBid.bid_id, realProof);
-      toast.success("Loser proof submitted");
+      toast.success(secret.value === winnerValue ? "Tie-breaker proof submitted" : "Loser proof submitted");
       onSuccess();
     } catch (err: any) {
       toast.error(err.message);
@@ -56,9 +62,9 @@ export default function LoserProofModal({ auctionId, myBid, winnerValue, onClose
               <div className="flex justify-between"><span className="text-slate-400">Your bid:</span><span className="font-semibold">{secret.value}</span></div>
               <div className="flex justify-between mt-1"><span className="text-slate-400">Winner bid:</span><span className="font-semibold text-yellow-400">{winnerValue}</span></div>
             </div>
-            {secret.value >= winnerValue && (
+            {secret.value > winnerValue && (
               <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-sm text-red-400">
-                Your bid is not less than the winner's bid.
+                Your bid is greater than the winner's bid.
               </div>
             )}
           </div>
@@ -68,7 +74,7 @@ export default function LoserProofModal({ auctionId, myBid, winnerValue, onClose
           </div>
         )}
         <div className="flex gap-3">
-          <button type="submit" className="btn-primary flex-1 justify-center" disabled={loading || !secret || (secret?.value ?? 0) >= winnerValue}>
+          <button type="submit" className="btn-primary flex-1 justify-center" disabled={loading || !secret || (secret?.value ?? 0) > winnerValue}>
             {loading ? "Submitting…" : "Submit Loser Proof"}
           </button>
           <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>

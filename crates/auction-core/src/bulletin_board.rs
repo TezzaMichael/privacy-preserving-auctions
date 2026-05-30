@@ -15,6 +15,7 @@ pub enum EntryKind {
     LoserProof,
     ProofCertificate,
     AuctionFinalize,
+    AuctionReverted,
 }
 
 impl std::fmt::Display for EntryKind {

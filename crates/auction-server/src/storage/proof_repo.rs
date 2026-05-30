@@ -114,4 +114,12 @@ impl ProofRepo {
             .await?;
         Ok(())
     }
+
+    pub async fn delete_all_loser_proofs(&self, auction_id: Uuid) -> Result<(), AuctionError> {
+        sqlx::query!("DELETE FROM loser_proofs WHERE auction_id = ?", auction_id)
+            .execute(&self.0)
+            .await
+            .map_err(|e| AuctionError::Internal(e.to_string()))?;
+        Ok(())
+    }
 }

@@ -127,4 +127,8 @@ impl ProofService {
         self.repo.delete_winner(auction_id).await.map_err(|e| AuctionError::Internal(e.to_string()))?;
         Ok(())
     }
+
+    pub async fn delete_all_loser_proofs(&self, auction_id: Uuid) -> Result<(), AuctionError> {
+        self.repo.delete_all_loser_proofs(auction_id).await
+    }
 }

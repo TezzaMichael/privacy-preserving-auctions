@@ -29,6 +29,7 @@ node_modules/
 frontend/.next/
 frontend/out/
 frontend/build/
+frontend/tsconfig.tsbuildinfo
 
 # Log of NPM / Yarn
 npm-debug.log*

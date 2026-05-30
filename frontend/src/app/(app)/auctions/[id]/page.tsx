@@ -247,24 +247,31 @@ export default function AuctionPage() {
       />
       
     
-
       {auction.status === "ProofPhase" && winner && (
         <div className={`border rounded-xl p-6 text-left shadow-lg transition-all duration-300 ${
           amIWinner 
             ? 'bg-emerald-950/40 border-emerald-500/50 shadow-emerald-900/20' 
-            : 'bg-amber-950/40 border-amber-500/50 shadow-amber-900/20'
+            : myBid 
+              ? 'bg-amber-950/40 border-amber-500/50 shadow-amber-900/20'
+              : 'bg-blue-950/40 border-blue-500/50 shadow-blue-900/20' // Observer/Creator styling
         }`}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className={`text-lg font-bold uppercase tracking-wider mb-1 flex items-center gap-2 ${
-                amIWinner ? 'text-emerald-400' : 'text-amber-400'
+                amIWinner 
+                  ? 'text-emerald-400' 
+                  : myBid 
+                    ? 'text-amber-400' 
+                    : 'text-blue-400'
               }`}>
                 {amIWinner ? '🎉 Provisional Winner' : '⚖️ Standing Update'}
               </h2>
               <p className="text-slate-200 text-sm">
                 {amIWinner 
                   ? "You are currently the winner! Wait for other participants' proofs or until the phase closes."
-                  : "You are not the winner currently. If your bid is higher, submit a proof to challenge!"
+                  : myBid
+                    ? "You are not the winner currently. If your bid is higher, submit a proof to challenge!"
+                    : "A provisional winner has been declared. Waiting for cryptographic proofs from other participants."
                 }
               </p>
             </div>
@@ -281,18 +288,28 @@ export default function AuctionPage() {
           hasValidWinner 
             ? amIWinner 
               ? 'bg-emerald-950/40 border-emerald-500/50 shadow-emerald-900/20' 
-              : 'bg-rose-950/40 border-rose-500/50 shadow-rose-900/20'
+              : myBid 
+                ? 'bg-rose-950/40 border-rose-500/50 shadow-rose-900/20'
+                : 'bg-blue-950/40 border-blue-500/50 shadow-blue-900/20' // Observer/Creator styling
             : 'bg-slate-800 border-slate-600 shadow-slate-900/20'
         }`}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className={`text-lg font-bold uppercase tracking-wider mb-1 flex items-center gap-2 ${
                 hasValidWinner 
-                  ? amIWinner ? 'text-emerald-400' : 'text-rose-400'
+                  ? amIWinner 
+                    ? 'text-emerald-400' 
+                    : myBid 
+                      ? 'text-rose-400' 
+                      : 'text-blue-400'
                   : 'text-slate-400'
               }`}>
                 {hasValidWinner 
-                  ? amIWinner ? '🏆 YOU WON!' : '❌ YOU LOST' 
+                  ? amIWinner 
+                    ? '🏆 YOU WON!' 
+                    : myBid 
+                      ? '❌ YOU LOST' 
+                      : '📢 AUCTION ENDED'
                   : '⚪ NO WINNER'
                 }
               </h2>
@@ -312,55 +329,6 @@ export default function AuctionPage() {
               </div>
             )}
           </div>
-        </div>
-      )}
-
-      {auction.status === "Closed" && !winner && (
-        <div className="border rounded-xl p-8 text-center shadow-lg bg-slate-900 border-red-500/30 shadow-red-900/20">
-          <h2 className="text-xl font-medium text-red-400 uppercase tracking-widest mb-2">Auction Closed</h2>
-          <div className="text-4xl font-bold text-white mb-2">No Winner</div>
-          <p className="text-slate-500 text-sm">No valid bids were claimed during the polling phase.</p>
-        </div>
-      )}
-      
-      {/* SCHERMO RADAR - MOSTRATO SOLO IN CLAIM PHASE E SOLO SE NON C'È ANCORA UN VINCITORE */}
-      {auction.status === "ClaimPhase" && !winner && (
-        <div className={`border rounded-xl p-8 text-center shadow-lg relative overflow-hidden transition-all duration-500 ${
-          countdownRemaining !== null ? 'bg-slate-900/60 border-amber-500/30 shadow-amber-900/10' :
-          pollingFailed ? 'bg-red-950/20 border-red-500/30 shadow-red-900/20' :
-          'bg-slate-900 border-blue-500/30 shadow-blue-900/20'
-        }`}>
-          {countdownRemaining !== null ? (
-            <>
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-50"></div>
-              <h2 className="text-xl font-medium text-amber-400 uppercase tracking-widest mb-2 flex items-center justify-center gap-2 animate-pulse">
-                Polling Preparation
-              </h2>
-              <div className="text-5xl font-mono font-bold text-white tracking-tight my-4">
-                Starts in: <span className="text-amber-400">{countdownRemaining}s</span>
-              </div>
-              <p className="text-xs text-slate-500 bg-surface border border-surface-border inline-block px-4 py-1 rounded-full">
-                Starting price is locked at <strong>{auction.max_bid} ₿</strong>.
-              </p>
-            </>
-          ) : pollingFailed ? (
-            <>
-              <h2 className="text-xl font-medium text-red-400 uppercase tracking-widest mb-2">Polling Ended</h2>
-              <div className="text-4xl font-bold text-white mb-4">No Winner</div>
-            </>
-          ) : (
-            <>
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50 animate-pulse"></div>
-              <h2 className="text-xl font-medium text-slate-400 uppercase tracking-widest mb-2 flex items-center justify-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping"></span>
-                Active Polling
-              </h2>
-              <div className="text-6xl font-mono font-bold text-white tracking-tight flex justify-center items-baseline gap-2">
-                <span className="text-blue-500 text-4xl">₿</span> 
-                {currentPollingPrice !== null ? currentPollingPrice : "---"}
-              </div>
-            </>
-          )}
         </div>
       )}
 
