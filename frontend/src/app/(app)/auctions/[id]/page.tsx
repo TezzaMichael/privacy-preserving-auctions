@@ -30,7 +30,6 @@ export default function AuctionPage() {
   const [showLoserModal, setShowLoserModal] = useState(false);
   const [showRevealModal, setShowRevealModal] = useState(false);
 
-  // Stati del Radar
   const [currentPollingPrice, setCurrentPollingPrice] = useState<number | null>(null);
   const [countdownRemaining, setCountdownRemaining] = useState<number | null>(null);
   const [pollingFailed, setPollingFailed] = useState(false);
@@ -38,19 +37,26 @@ export default function AuctionPage() {
   const isClaimingRef = useRef(false);
   const [mySecretValue, setMySecretValue] = useState<number | null>(null);
 
+  const [isBanned, setIsBanned] = useState(false);
+
   async function load() {
     try {
       const [aR, bR, bbR] = await Promise.all([
         api.auctions.get(id), api.bids.list(id), api.board.get(id),
       ]);
-      setAuction(aR.data);
+      
+      // Protezione: se abbiamo già forzato la chiusura in locale, ignoriamo il ClaimPhase del server
+      if (pollingFailed && aR.data.status === "ClaimPhase") {
+        setAuction({ ...aR.data, status: "Closed" });
+      } else {
+        setAuction(aR.data);
+      }
+
       setBids(bR.data.bids);
       setEntries(bbR.data.entries);
       
       const secret = loadSecret(id);
-      if (secret) {
-        setMySecretValue(secret.value);
-      }
+      if (secret) setMySecretValue(secret.value);
 
       if (["ClaimPhase", "ProofPhase", "Closed"].includes(aR.data.status)) {
         try { const wR = await api.proofs.getWinner(id); setWinner(wR.data); } catch {}
@@ -64,14 +70,14 @@ export default function AuctionPage() {
   useEffect(() => { 
     load();
     const secret = loadSecret(id);
-    if (secret) {
-      setMySecretValue(secret.value);
-    }
+    if (secret) setMySecretValue(secret.value);
+    if (localStorage.getItem(`banned_${id}`)) setIsBanned(true);
   }, [id]);
 
-  // SINCRONIZZAZIONE SILENZIOSA
   useEffect(() => {
-    if (!auction || auction.status === "Closed") return;
+    // Se è Closed localmente, fermiamo il polling per non far sovrascrivere lo stato dal server "lento"
+    if (!auction || auction.status === "Closed" || pollingFailed) return;
+    
     const interval = setInterval(() => {
       api.auctions.get(id).then(aR => {
         if (aR.data.status !== auction.status) {
@@ -85,9 +91,8 @@ export default function AuctionPage() {
       }).catch(() => {});
     }, 1500);
     return () => clearInterval(interval);
-  }, [auction?.status, id]);
+  }, [auction?.status, id, pollingFailed]);
 
-  // EFFETTO RADAR (2 Secondi a step)
   useEffect(() => {
     if (!auction || auction.status !== "ClaimPhase" || !auction.max_bid || winner) return;
     
@@ -99,6 +104,8 @@ export default function AuctionPage() {
     const start = new Date(auction.end_time).getTime();
 
     const updatePrice = () => {
+      // FIX: Rimosso "|| isBanned". Il radar SCENDE per tutti, anche per chi è bannato, 
+      // in modo che l'asta possa raggiungere lo zero e chiudersi.
       if (isClaimingRef.current) return;
 
       const now = Date.now();
@@ -116,11 +123,14 @@ export default function AuctionPage() {
         
         if (current <= limit) {
           setCurrentPollingPrice(limit);
-          setPollingFailed(true);
           
-          // ❌ ELIMINATO: Il frontend NON DEVE MAI forzare la chiusura tramite API.
-          // Lasciamo che sia il backend (main.rs) a chiuderla se scatta il timeout vero e proprio.
-          
+          const limitHitTimeMs = warmUpMs + (((maxBid - limit) / bidStep) * secondsPerStep * 1000);
+          if (elapsedMs > limitHitTimeMs + 3000) {
+            setPollingFailed(true);
+            setAuction(prev => (prev && prev.status !== "Closed") ? { ...prev, status: "Closed" } : prev);
+            // Solo chi NON è bannato prova ad avvisare il server
+            if (token && !isBanned) api.auctions.close(token, id).catch(() => {});
+          }
         } else {
           setCurrentPollingPrice(current);
         }
@@ -130,12 +140,12 @@ export default function AuctionPage() {
     updatePrice(); 
     const interval = setInterval(updatePrice, 1000);
     return () => clearInterval(interval);
-  }, [auction?.status, winner, id]);
-  
-  // AUTOMAZIONE INVISIBILE CALIBRATA (Solo per il primo claim)
+  }, [auction?.status, winner, id, isBanned, token]);
+
   const myBid = bids.find(b => b.bidder_id === user?.user_id);
   useEffect(() => {
-    if (!auction || auction.status !== "ClaimPhase" || !myBid || !token || winner) return;
+    // Se sei bannato, non partecipi all'auto-reveal
+    if (!auction || auction.status !== "ClaimPhase" || !myBid || !token || winner || isBanned) return;
     
     const storedBidData = loadSecret(id); 
     if (storedBidData) {
@@ -165,8 +175,15 @@ export default function AuctionPage() {
                     await api.proofs.revealWinner(token, id, myBid.bid_id, myValue, realProof);
                     toast.success("Bid claimed successfully!", { id: "reveal-toast" });
                     load(); 
-                } catch (err) {
+                } catch (err: any) {
                     toast.dismiss("reveal-toast");
+                    const msg = err.message?.toLowerCase();
+                    if (msg.includes("invalid") || msg.includes("sync") || msg.includes("proof")) {
+                        localStorage.setItem(`banned_${id}`, "true");
+                        setIsBanned(true);
+                    } else {
+                        toast.error(err.message);
+                    }
                 }
             };
 
@@ -178,7 +195,7 @@ export default function AuctionPage() {
         } catch (e) { console.error(e); }
     }
     return () => { if (autoRevealTimerRef.current) clearTimeout(autoRevealTimerRef.current); };
-  }, [auction?.status, myBid, winner, id, token]);
+  }, [auction?.status, myBid, winner, id, token, isBanned]);
 
   async function transition(action: "open" | "close" | "finalize") {
     if (!token) return;
@@ -196,16 +213,31 @@ export default function AuctionPage() {
   const iAmLoserAndHaveProven = losers.some(l => l.bidder_id === user?.user_id);
   const hasValidWinner = winner && winner.winner_id !== "00000000-0000-0000-0000-000000000000";
   const amIWinner = hasValidWinner && winner.winner_id === user?.user_id;
+  const isZkpChallenge = mySecretValue !== null && winner !== null && Number(mySecretValue) > Number(winner.revealed_value);
 
   const visibleBids = bids.filter(b => 
+    isCreator || 
     b.bidder_id === user?.user_id || 
-    b.bidder_id === winner?.winner_id
+    b.bidder_id === winner?.winner_id 
   );
-
-  const isZkpChallenge = mySecretValue !== null && winner !== null && Number(mySecretValue) > Number(winner.revealed_value);
 
   return (
     <div className="space-y-6">
+      
+      {isBanned && (
+        <div className="bg-red-950/80 border-l-4 border-red-500 p-6 rounded-lg shadow-xl shadow-red-900/20 mb-6 flex flex-col sm:flex-row items-start gap-4">
+          <div className="text-4xl">🚨</div>
+          <div>
+            <h2 className="text-xl font-bold text-red-400 mb-1">Banned for Fraudulent Activity</h2>
+            <p className="text-red-200/80 text-sm">
+              The system detected an attempt to manipulate the bid value in your browser memory. 
+              The cryptographic zero-knowledge check rejected your proof because it doesn't match the original sealed commitment you sent to the blockchain. 
+              You are permanently disqualified from this auction.
+            </p>
+          </div>
+        </div>
+      )}
+
       <AuctionHeader
         auction={auction}
         isCreator={isCreator}
@@ -217,18 +249,18 @@ export default function AuctionPage() {
         
         isZkpChallenge={isZkpChallenge}
         onReveal={(
-          (auction.status === "ClaimPhase" && !winner && myBid) || 
-          (auction.status === "ProofPhase" && isZkpChallenge)
+          !isBanned && auction.status === "ProofPhase" && isZkpChallenge
         ) ? () => setShowRevealModal(true) : undefined}
         
         onLoserProof={(
+          !isBanned &&
           auction.status === "ProofPhase" && 
           winner && 
           !isCreator && 
           myBid && 
           winner.winner_id !== user?.user_id && 
           !iAmLoserAndHaveProven && 
-          !isZkpChallenge // Se è una sfida, nascondi questo bottone
+          !isZkpChallenge
         ) ? () => setShowLoserModal(true) : undefined}
       />
 

@@ -30,7 +30,12 @@ export default function AuctionHeader({
   hasWinner 
 }: Props) {
   const isAuctionEnded = new Date() >= new Date(auction.end_time);
-  const canVerify = auction.status === "ProofPhase" || auction.status === "Closed";
+  
+  // Può verificare normalmente se c'è un vincitore o l'asta è in proof phase
+  const canVerifyNormal = auction.status === "ProofPhase" || (auction.status === "Closed" && hasWinner);
+  
+  // Il bottone viene disattivato (invece che nascosto) se l'asta è chiusa ma senza vincitore
+  const isVerifyDisabled = auction.status === "Closed" && !hasWinner;
 
   const [timeRemainingStr, setTimeRemainingStr] = useState<string>("");
 
@@ -42,11 +47,11 @@ export default function AuctionHeader({
       if (auction.status === "BiddingOpen") {
         const diff = endTimeMs - now;
         if (diff <= 0) {
-          setTimeRemainingStr("Scadenza in corso...");
+          setTimeRemainingStr("Expiring...");
         } else {
           const mins = Math.floor(diff / 60000);
           const secs = Math.floor((diff % 60000) / 1000);
-          setTimeRemainingStr(`Offerte: ${mins}m ${secs}s`);
+          setTimeRemainingStr(`Bidding: ${mins}m ${secs}s`);
         }
       } else {
         setTimeRemainingStr(""); 
@@ -94,11 +99,16 @@ export default function AuctionHeader({
             </div>
           )}
 
-          {canVerify && (
+          {/* FIX: Gestione Intelligente del Bottone Verify */}
+          {canVerifyNormal ? (
             <Link href={`/auctions/${auction.id}/verify`} className="btn-secondary">
               <Eye size={14} /> Verify Publicly
             </Link>
-          )}
+          ) : isVerifyDisabled ? (
+            <button disabled className="btn-secondary opacity-40 cursor-not-allowed" title="No winner data to verify">
+              <Eye size={14} /> Verify Publicly
+            </button>
+          ) : null}
           
           {isCreator && auction.status === "Pending" && (
             <button className="btn-primary" onClick={() => onTransition("open")}><Play size={14} /> Open Bidding</button>
@@ -114,7 +124,6 @@ export default function AuctionHeader({
             </button>
           )}
           
-          {/* BOTTONE ZKP DINAMICO */}
           {onLoserProof && (
             <button 
               className={cn(

@@ -60,10 +60,16 @@ export default function RevealModal({ auctionId, myBid, currentWinnerValue, onCl
       toast.success(isChallenge ? "Challenge successful! You are the new winner." : "Claim submitted successfully!");
       onSuccess();
     } catch (err: any) {
-      if (err.message.includes("fuori sincrono") || err.message.includes("out of sync")) {
-        toast.error("Out of sync with the polling radar. Please try again.");
+      const msg = err.message?.toLowerCase();
+      
+      // BAN TRAP: Se la prova crittografica è sbagliata, banna l'utente
+      if (msg.includes("invalid") || msg.includes("sync") || msg.includes("proof")) {
+          localStorage.setItem(`banned_${auctionId}`, "true");
+          toast.error("Fraud detected! You have been disqualified.");
+          onClose();
+          window.location.reload(); // Forza il ricaricamento per mostrare il banner rosso
       } else {
-        toast.error(err.message);
+          toast.error(err.message);
       }
     } finally {
       setLoading(false);

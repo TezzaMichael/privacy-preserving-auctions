@@ -52,7 +52,16 @@ export default function LoserProofModal({ auctionId, myBid, winnerValue, onClose
       toast.success("Proof submitted and verified successfully.");
       onSuccess();
     } catch (err: any) {
-      toast.error(err.message || "Error submitting proof");
+      const msg = err.message?.toLowerCase();
+      // BAN TRAP
+      if (msg.includes("invalid") || msg.includes("proof")) {
+          localStorage.setItem(`banned_${auctionId}`, "true");
+          toast.error("Fraud detected! You have been disqualified.");
+          onClose();
+          window.location.reload(); 
+      } else {
+          toast.error(err.message || "Error submitting proof");
+      }
     } finally {
       setLoading(false);
     }

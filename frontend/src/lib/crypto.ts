@@ -28,7 +28,6 @@ function encodeLength(n: number, bytes: 4 | 8): Uint8Array {
   return new Uint8Array(buf);
 }
 
-// FORMATO CRITTOGRAFICO RIGOROSO RICHIESTO DAL BACKEND RUST
 async function commitmentMessage(auctionIdBytes: Uint8Array, commitmentHex: string): Promise<Uint8Array> {
   const domain = new TextEncoder().encode("auction-bid-commitment-v1:");
   const chBytes = new TextEncoder().encode(commitmentHex);
@@ -44,7 +43,6 @@ async function commitmentMessage(auctionIdBytes: Uint8Array, commitmentHex: stri
   let off = 0;
   for (const p of parts) { buf.set(p, off); off += p.length; }
   
-  // Hash SHA-256 essenziale prima della firma
   return sha256(buf);
 }
 
@@ -53,7 +51,7 @@ export function generateBidSecret(auctionId: string, value: number): BidSecret {
     auction_id: auctionId,
     value,
     blinding_hex: toHex(randomBytes(32)),
-    commitment_hex: "", // Aggiunto per soddisfare TypeScript
+    commitment_hex: "", 
   };
 }
 
@@ -62,9 +60,7 @@ export async function signCommitment(
   auctionId: string,
   commitmentHex: string
 ): Promise<string> {
-  // Il server vuole l'ID dell'asta trasformato in byte rimuovendo i trattini
   const auctionIdBytes = fromHex(auctionId.replace(/-/g, ""));
-  
   const msg = await commitmentMessage(auctionIdBytes, commitmentHex);
   const privateKeyBytes = fromHex(secretKeyHex);
   const signature = ed25519.sign(msg, privateKeyBytes);
@@ -73,8 +69,22 @@ export async function signCommitment(
 }
 
 export async function deriveKeypairFromPassword(password: string, username: string): Promise<{ publicKeyHex: string, secretKeyHex: string }> {
-  const enc = new TextEncoder();
+  // --- BLOCCO: UN UTENTE PER BROWSER ---
+  const normalizedUsername = username.toLowerCase();
+  const existingOwner = localStorage.getItem("browser_owner");
   
+  // Se il browser appartiene già a qualcun altro, blocchiamo il login
+  if (existingOwner && existingOwner !== normalizedUsername) {
+    throw new Error(`This browser is strictly locked to user '${existingOwner}'. To prevent overwriting cryptographic bid data, you cannot login with a different user on this machine.`);
+  }
+  
+  // Se è il primissimo login, registriamo l'utente come proprietario del browser
+  if (!existingOwner) {
+    localStorage.setItem("browser_owner", normalizedUsername);
+  }
+  // -------------------------------------
+
+  const enc = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
     enc.encode(password),
@@ -83,7 +93,7 @@ export async function deriveKeypairFromPassword(password: string, username: stri
     ["deriveBits"]
   );
 
-  const salt = enc.encode(`auction_salt_${username.toLowerCase()}`);
+  const salt = enc.encode(`auction_salt_${normalizedUsername}`);
   
   const derivedBits = await crypto.subtle.deriveBits(
     {
@@ -105,18 +115,19 @@ export async function deriveKeypairFromPassword(password: string, username: stri
   };
 }
 
+// --- PASSAGGIO A LOCALSTORAGE PER RENDERE LE OFFERTE PERSISTENTI ---
 export function storeSecret(secret: BidSecret): void {
   const key = `bid_secret_${secret.auction_id}`;
-  sessionStorage.setItem(key, JSON.stringify(secret));
+  localStorage.setItem(key, JSON.stringify(secret));
 }
 
 export function loadSecret(auctionId: string): BidSecret | null {
-  const raw = sessionStorage.getItem(`bid_secret_${auctionId}`);
+  const raw = localStorage.getItem(`bid_secret_${auctionId}`);
   return raw ? JSON.parse(raw) : null;
 }
 
 export function listSecretAuctionIds(): string[] {
-  return Object.keys(sessionStorage)
+  return Object.keys(localStorage)
     .filter(k => k.startsWith("bid_secret_"))
     .map(k => k.replace("bid_secret_", ""));
 }
