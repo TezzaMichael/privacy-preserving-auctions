@@ -69,22 +69,9 @@ export async function signCommitment(
 }
 
 export async function deriveKeypairFromPassword(password: string, username: string): Promise<{ publicKeyHex: string, secretKeyHex: string }> {
-  // --- BLOCCO: UN UTENTE PER BROWSER ---
   const normalizedUsername = username.toLowerCase();
-  const existingOwner = localStorage.getItem("browser_owner");
-  
-  // Se il browser appartiene già a qualcun altro, blocchiamo il login
-  if (existingOwner && existingOwner !== normalizedUsername) {
-    throw new Error(`This browser is strictly locked to user '${existingOwner}'. To prevent overwriting cryptographic bid data, you cannot login with a different user on this machine.`);
-  }
-  
-  // Se è il primissimo login, registriamo l'utente come proprietario del browser
-  if (!existingOwner) {
-    localStorage.setItem("browser_owner", normalizedUsername);
-  }
-  // -------------------------------------
-
   const enc = new TextEncoder();
+
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
     enc.encode(password),
@@ -115,7 +102,6 @@ export async function deriveKeypairFromPassword(password: string, username: stri
   };
 }
 
-// --- PASSAGGIO A LOCALSTORAGE PER RENDERE LE OFFERTE PERSISTENTI ---
 export function storeSecret(secret: BidSecret): void {
   const key = `bid_secret_${secret.auction_id}`;
   localStorage.setItem(key, JSON.stringify(secret));
