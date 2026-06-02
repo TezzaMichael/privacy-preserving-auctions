@@ -1,0 +1,18 @@
+# Rust
+target/
+**/*.rs.bk
+
+# Next.js & Node
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env.local
+
+# Git
+.git/
+.gitignore
+
+# local database files
+*.db
+*.db-shm
+*.db-wal
