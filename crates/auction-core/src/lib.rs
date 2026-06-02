@@ -6,7 +6,6 @@ pub mod errors;
 pub mod proof;
 pub mod requests;
 pub mod responses;
-pub mod reveal;
 pub mod user;
 
 pub use auction::Auction;
@@ -27,5 +26,4 @@ pub use responses::{
     VerifyCommitmentResponse, VerifyProofResponse, BulletinBoardEntryResponse,
     RevealWinnerResponse,
 };
-pub use reveal::AuctionRevealState;
 pub use user::User;

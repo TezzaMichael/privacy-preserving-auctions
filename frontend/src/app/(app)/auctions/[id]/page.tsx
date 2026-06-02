@@ -45,7 +45,6 @@ export default function AuctionPage() {
         api.auctions.get(id), api.bids.list(id), api.board.get(id),
       ]);
       
-      // Protezione: se abbiamo già forzato la chiusura in locale, ignoriamo il ClaimPhase del server
       if (pollingFailed && aR.data.status === "ClaimPhase") {
         setAuction({ ...aR.data, status: "Closed" });
       } else {
@@ -75,21 +74,23 @@ export default function AuctionPage() {
   }, [id]);
 
   useEffect(() => {
-    // Se è Closed localmente, fermiamo il polling per non far sovrascrivere lo stato dal server "lento"
     if (!auction || auction.status === "Closed" || pollingFailed) return;
     
     const interval = setInterval(() => {
       api.auctions.get(id).then(aR => {
-        if (aR.data.status !== auction.status) {
+        const serverStatus = (pollingFailed && aR.data.status === "ClaimPhase") ? "Closed" : aR.data.status;
+
+        if (serverStatus !== auction.status) {
           load();
-        } else if (aR.data.status === "ClaimPhase" || aR.data.status === "ProofPhase") {
+        } else if (serverStatus === "ClaimPhase" || serverStatus === "ProofPhase") {
           api.proofs.getWinner(id).then(wR => { if (wR.data) setWinner(wR.data); }).catch(() => {});
-          if (aR.data.status === "ProofPhase") {
+          if (serverStatus === "ProofPhase") {
             api.proofs.listLosers(id).then(lR => setLosers(lR.data.proofs)).catch(() => {});
           }
         }
       }).catch(() => {});
-    }, 1500);
+    }, 3000); 
+    
     return () => clearInterval(interval);
   }, [auction?.status, id, pollingFailed]);
 
@@ -104,8 +105,6 @@ export default function AuctionPage() {
     const start = new Date(auction.end_time).getTime();
 
     const updatePrice = () => {
-      // FIX: Rimosso "|| isBanned". Il radar SCENDE per tutti, anche per chi è bannato, 
-      // in modo che l'asta possa raggiungere lo zero e chiudersi.
       if (isClaimingRef.current) return;
 
       const now = Date.now();
@@ -128,7 +127,6 @@ export default function AuctionPage() {
           if (elapsedMs > limitHitTimeMs + 3000) {
             setPollingFailed(true);
             setAuction(prev => (prev && prev.status !== "Closed") ? { ...prev, status: "Closed" } : prev);
-            // Solo chi NON è bannato prova ad avvisare il server
             if (token && !isBanned) api.auctions.close(token, id).catch(() => {});
           }
         } else {
@@ -144,7 +142,6 @@ export default function AuctionPage() {
 
   const myBid = bids.find(b => b.bidder_id === user?.user_id);
   useEffect(() => {
-    // Se sei bannato, non partecipi all'auto-reveal
     if (!auction || auction.status !== "ClaimPhase" || !myBid || !token || winner || isBanned) return;
     
     const storedBidData = loadSecret(id); 

@@ -7,25 +7,20 @@ import AuctionCard from "@/components/AuctionCard";
 
 export default function DashboardPage() {
   const { auctions, loading, fetch } = useAuctionStore();
-  // Forza un re-render periodico per ricalcolare gli stati derivati (i timer che scadono)
   const [tick, setTick] = useState(0);
 
   useEffect(() => { 
     fetch(); 
   }, [fetch]);
 
-  // Aggiorna l'orologio interno ogni 5 secondi per far "scadere" le aste in tempo reale sulla dashboard
   useEffect(() => {
     const interval = setInterval(() => setTick(t => t + 1), 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // 1. Calcola lo "Stato Derivato": se il radar è palesemente scaduto, forza lo stato su Closed.
-  // 2. Applica il filtro delle 24 ore.
   const activeAuctions = auctions.map(a => {
     let derivedStatus = a.status;
 
-    // Se il server dice che è in ClaimPhase, verifichiamo matematicamente se il tempo è scaduto
     if (derivedStatus === "ClaimPhase" && a.max_bid !== null) {
       const warmUpMs = 60000;
       const max = a.max_bid;
@@ -34,10 +29,8 @@ export default function DashboardPage() {
       const secondsPerStep = 2;
       
       const maxPollingMs = ((max - min) / step) * secondsPerStep * 1000;
-      // Momento esatto in cui il radar tocca il valore minimo (min_bid)
       const limitHitTimeMs = new Date(a.end_time).getTime() + warmUpMs + maxPollingMs;
 
-      // Se il momento attuale ha superato la fine del radar + i 3 secondi di tolleranza, considerala chiusa
       if (Date.now() > limitHitTimeMs + 3000) {
         derivedStatus = "Closed";
       }
@@ -47,11 +40,10 @@ export default function DashboardPage() {
   }).filter(a => {
     if (a.status !== "Closed") return true; 
     
-    // Per le aste chiuse, calcola quanto tempo è passato dalla fine ufficiale
     const msSinceEnd = Date.now() - new Date(a.end_time).getTime();
     const hoursSinceEnd = msSinceEnd / (1000 * 60 * 60);
     
-    // Mostra le aste chiuse solo se sono passate meno di 24 ore
+    // Show auctions that ended less than 24 hours ago 
     return hoursSinceEnd < 24; 
   });
 
@@ -88,7 +80,6 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Usiamo le aste con lo status "corretto" in locale */}
           {activeAuctions.map(a => <AuctionCard key={a.id} auction={a} />)}
         </div>
       )}

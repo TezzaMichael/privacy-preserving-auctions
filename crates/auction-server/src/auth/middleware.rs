@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use axum::{
-    extract::{FromRequestParts, State},
+    extract::{FromRequestParts},
     http::{request::Parts, StatusCode},
 };
 use uuid::Uuid;

@@ -21,7 +21,7 @@ pub fn verify_chain_integrity(entries: &[BulletinBoardEntry]) -> Result<(), Chai
     for (idx, entry) in entries.iter().enumerate() {
         let expected_seq = idx as i64;
         if entry.sequence != expected_seq {
-            // ...
+            return Err(ChainVerifyError::SequenceGap { seq: entry.sequence, expected: expected_seq, got: entry.sequence });
         }
         let entry_prev = decode32(&entry.prev_hash_hex)
             .ok_or(ChainVerifyError::HexDecode { seq: entry.sequence, field: "prev_hash_hex" })?;

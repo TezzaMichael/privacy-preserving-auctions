@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { api } from "@/lib/api";
 import type { BBEntry, LoserProof, WinnerReveal, SealedBid, VerificationResult, ServerPublicKey, Auction } from "@/types";
-import { verifyTranscriptWasm, wasmAvailable } from "@/lib/wasm";
+import { wasmAvailable } from "@/lib/wasm";
 import VerificationPanel from "@/components/verify/VerificationPanel";
 import TranscriptViewer from "@/components/verify/TranscriptViewer";
 import { toast } from "sonner";
@@ -44,7 +44,7 @@ export default function VerifyPage() {
 
   async function runVerification() {
     if (!serverKey || !auction) {
-      toast.error("Dati in caricamento...");
+      toast.error("Data is loading...");
       return;
     }
     setLoading(true);
@@ -68,29 +68,27 @@ export default function VerifyPage() {
           commitment_hex: bids.find(b => b.bid_id === l.bid_id)?.commitment_hex ?? "",
           proof_json: l.proof_json,
         })),
-        // Passiamo l'oggetto esattamente come si aspetta la firma crittografica
         server_verifier: { verifying_key: serverKey.public_key_hex },
         pedersen_generators: { g: serverKey.pedersen_g_hex, h: serverKey.pedersen_h_hex },
       };
 
       const transcriptJson = JSON.stringify(transcript);
-      console.log("📤 JSON inviato a Rust:", transcript);
+      console.log("JSON sent to Rust:", transcript);
 
-      // Carichiamo il WASM scavalcando wasm.ts per vedere l'errore grezzo
       const mod = await import("@/wasm/auction_verifier.js");
       await mod.default();
       
       try {
         const r = mod.verify_transcript(transcriptJson);
         setResult(r as VerificationResult);
-        toast.success(r.fully_valid ? "Asta completamente verificata!" : "La verifica ha riscontrato anomalie");
+        toast.success(r.fully_valid ? "Bid verified!" : "The verification has detected anomalies");
       } catch (rustError) {
-        console.error("🚨 ERRORE DI VALIDAZIONE RUST:", rustError);
-        toast.error("Il payload JSON è stato rifiutato da Rust. Controlla la console.");
+        console.error("Rust error:", rustError);
+        toast.error("The JSON payload was rejected by Rust. Check the console.");
       }
 
     } catch (err: any) {
-      console.error("Errore generale:", err);
+      console.error("General error:", err);
     } finally {
       setLoading(false);
     }

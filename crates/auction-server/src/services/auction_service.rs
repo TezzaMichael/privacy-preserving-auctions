@@ -16,32 +16,28 @@ impl AuctionService {
         title: String,
         description: String,
         min_bid: i64,
-        max_bid: i64, // <-- ORA È OBBLIGATORIO (i64 puro)
+        max_bid: i64, 
         bid_step: i64,
         duration_seconds: i64,
     ) -> Result<Auction, AuctionError> {
         
         if bid_step <= 0 {
-            return Err(AuctionError::Internal("Il bid_step deve essere rigorosamente maggiore di zero.".into()));
+            return Err(AuctionError::Internal("bid_step must be a positive integer".into()));
         }
 
-        // Validazione di coerenza diretta (senza Option)
+        // Logic checks
         if min_bid > max_bid {
-            return Err(AuctionError::Internal("Il min_bid non può essere superiore al max_bid.".into()));
+            return Err(AuctionError::Internal("min_bid cannot be greater than max_bid".into()));
         }
         if bid_step > max_bid {
-            return Err(AuctionError::Internal("Il bid_step non può essere superiore al max_bid.".into()));
+            return Err(AuctionError::Internal("bid_step cannot be greater than max_bid".into()));
         }
-        // Controllo opzionale ma consigliato: il salto non dovrebbe essere più grande del range giocabile
         if bid_step > (max_bid - min_bid) && min_bid != max_bid {
-            return Err(AuctionError::Internal("Il bid_step è troppo grande rispetto al range tra min_bid e max_bid.".into()));
+            return Err(AuctionError::Internal("bid_step is too large relative to the range between min_bid and max_bid".into()));
         }
 
-        // NOTA: Se la tua struct in `auction_core` usa ancora Option<i64> per il database,
-        // avvolgiamo max_bid in Some(). Se hai cambiato anche lì in i64 puro, togli Some().
         let mut auction = Auction::new(creator_id, title, description, min_bid, Some(max_bid), bid_step, duration_seconds);
         
-        // AUTO-AVVIO: Sovrascriviamo lo stato iniziale (solitamente Pending) per farla partire subito
         auction.status = AuctionStatus::BiddingOpen;
 
         self.repo.insert(&auction).await?;
@@ -84,9 +80,9 @@ impl AuctionService {
         return Err(AuctionError::NotCreator);
     }
 
-    // Aggiungi il time-lock per impedire la chiusura prematura
+    // time-locked transition: only allow moving to ClaimPhase after end_time
     if to == AuctionStatus::ClaimPhase && chrono::Utc::now() < auction.end_time {
-        return Err(AuctionError::Internal("L'asta non può essere chiusa prima della scadenza".into()));
+        return Err(AuctionError::Internal("Auction cannot be claimed before it ends".into()));
     }
 
     if !auction.status.can_transition_to(&to) {
@@ -119,9 +115,4 @@ impl AuctionService {
         Ok(auction)
     }
 
-    pub async fn restart_polling(&self, id: Uuid) -> Result<(), AuctionError> {
-        let new_end_time = chrono::Utc::now(); 
-        self.repo.restart_polling(id, new_end_time).await.map_err(|e| AuctionError::Internal(e.to_string()))?;
-        Ok(())
-    }
 }

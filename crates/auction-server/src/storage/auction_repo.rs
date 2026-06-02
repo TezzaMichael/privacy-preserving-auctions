@@ -9,7 +9,7 @@ impl AuctionRepo {
         let status = a.status.to_string();
         sqlx::query!(
             "INSERT INTO auctions (id, creator_id, title, description, status, min_bid, max_bid, bid_step, end_time, server_signature_hex, bb_create_sequence, created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", // <-- 13 punti interrogativi
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", 
             a.id, a.creator_id, a.title, a.description, status, a.min_bid, a.max_bid, a.bid_step, a.end_time,
             a.server_signature_hex, a.bb_create_sequence, a.created_at, a.updated_at
         )
@@ -78,13 +78,6 @@ impl AuctionRepo {
         )
         .execute(&self.0)
         .await?;
-        Ok(())
-    }
-
-    pub async fn restart_polling(&self, id: Uuid, new_end_time: chrono::DateTime<chrono::Utc>) -> Result<(), sqlx::Error> {
-        sqlx::query!("UPDATE auctions SET status = 'ClaimPhase', end_time = ? WHERE id = ?", new_end_time, id)
-            .execute(&self.0)
-            .await?;
         Ok(())
     }
 }

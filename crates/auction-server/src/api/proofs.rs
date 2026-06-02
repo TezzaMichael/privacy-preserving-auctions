@@ -2,7 +2,7 @@ use std::sync::Arc;
 use axum::{
     extract::{Path, State},
     response::IntoResponse,
-    routing::{get, post},
+    routing::{post},
     Json, Router,
 };
 use uuid::Uuid;
@@ -18,7 +18,6 @@ use crate::{
     models::bb_payloads::{LoserProofPayload, WinnerRevealPayload},
     state::AppState,
 };
-use chrono::Utc;
 
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
@@ -230,7 +229,7 @@ async fn get_winner_reveal(
 ) -> impl axum::response::IntoResponse {
     match state.proof_service.get_winner_reveal(auction_id).await {
         Ok(Some(record)) => axum::response::Json(WinnerRevealDetailResponse::from(record)).into_response(),
-        Ok(None) => axum::http::StatusCode::NOT_FOUND.into_response(),
+        Ok(None) => axum::response::Json(serde_json::Value::Null).into_response(),
         Err(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
 }
@@ -297,18 +296,7 @@ async fn submit_loser_proof(
         &bid.commitment_hex,
         winner.revealed_value,
     ).await?;
-
-    let payload = serde_json::to_value(LoserProofPayload {
-        proof_id: record.id,
-        auction_id,
-        bidder_id: user_id,
-        bid_id: bid.id,
-    })?;
     
-    let _entry = state.bulletin_board_service
-        .append(auction_id, auction_core::bulletin_board::EntryKind::LoserProof, payload, &state.server_signer)
-        .await?;
-
     check_auto_close(&state, auction_id).await;
 
     Ok(Json(LoserProofResponse::from(record)))

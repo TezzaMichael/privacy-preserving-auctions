@@ -46,14 +46,6 @@ async function commitmentMessage(auctionIdBytes: Uint8Array, commitmentHex: stri
   return sha256(buf);
 }
 
-export function generateBidSecret(auctionId: string, value: number): BidSecret {
-  return {
-    auction_id: auctionId,
-    value,
-    blinding_hex: toHex(randomBytes(32)),
-    commitment_hex: "", 
-  };
-}
 
 export async function signCommitment(
   secretKeyHex: string,
@@ -110,10 +102,4 @@ export function storeSecret(secret: BidSecret): void {
 export function loadSecret(auctionId: string): BidSecret | null {
   const raw = localStorage.getItem(`bid_secret_${auctionId}`);
   return raw ? JSON.parse(raw) : null;
-}
-
-export function listSecretAuctionIds(): string[] {
-  return Object.keys(localStorage)
-    .filter(k => k.startsWith("bid_secret_"))
-    .map(k => k.replace("bid_secret_", ""));
 }

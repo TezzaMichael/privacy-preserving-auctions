@@ -31,10 +31,8 @@ export default function AuctionHeader({
 }: Props) {
   const isAuctionEnded = new Date() >= new Date(auction.end_time);
   
-  // Può verificare normalmente se c'è un vincitore o l'asta è in proof phase
   const canVerifyNormal = auction.status === "ProofPhase" || (auction.status === "Closed" && hasWinner);
   
-  // Il bottone viene disattivato (invece che nascosto) se l'asta è chiusa ma senza vincitore
   const isVerifyDisabled = auction.status === "Closed" && !hasWinner;
 
   const [timeRemainingStr, setTimeRemainingStr] = useState<string>("");
@@ -99,7 +97,6 @@ export default function AuctionHeader({
             </div>
           )}
 
-          {/* FIX: Gestione Intelligente del Bottone Verify */}
           {canVerifyNormal ? (
             <Link href={`/auctions/${auction.id}/verify`} className="btn-secondary">
               <Eye size={14} /> Verify Publicly

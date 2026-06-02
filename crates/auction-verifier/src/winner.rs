@@ -12,12 +12,12 @@ pub enum WinnerVerifyError {
     ValueMismatch { request: u64, proof: u64 },
     #[error("proof JSON deserialize failed: {0}")]
     DeserializeError(String),
-    #[error("L'offerta rivelata è inferiore al minimo consentito")]
-    BelowMinimum,
-    #[error("L'offerta rivelata è superiore al massimo consentito")]
-    AboveMaximum,
-    #[error("L'offerta rivelata non rispetta i salti (step) stabiliti")]
-    InvalidStep,
+    #[error("bid should be at least {min_bid}")]
+    BelowMinimum { min_bid: u64 },
+    #[error("bid should be at most {max_bid}")]
+    AboveMaximum { max_bid: u64 },
+    #[error("bid should be a multiple of {bid_step}")]
+    InvalidStep { bid_step: u64 },
 }
 
 pub fn verify_winner_proof(
@@ -25,25 +25,23 @@ pub fn verify_winner_proof(
     claimed_value: u64,
     proof_json: &str,
     gens: &PedersenGenerators,
-    min_bid: u64,           // <-- NUOVO PARAMETRO
-    max_bid: Option<u64>,   // <-- NUOVO PARAMETRO
-    bid_step: u64,          // <-- NUOVO PARAMETRO
+    min_bid: u64,           
+    max_bid: Option<u64>,   
+    bid_step: u64,          
 ) -> Result<(), WinnerVerifyError> {
     
-    // 1. Controlli Logici (Squalifica post-reveal)
     if claimed_value < min_bid {
-        return Err(WinnerVerifyError::BelowMinimum);
+        return Err(WinnerVerifyError::BelowMinimum { min_bid });
     }
     if let Some(max) = max_bid {
         if claimed_value > max {
-            return Err(WinnerVerifyError::AboveMaximum);
+            return Err(WinnerVerifyError::AboveMaximum { max_bid: max });
         }
     }
     if (claimed_value - min_bid) % bid_step != 0 {
-        return Err(WinnerVerifyError::InvalidStep);
+        return Err(WinnerVerifyError::InvalidStep { bid_step });
     }
 
-    // 2. Controlli Crittografici (esattamente come li avevi prima)
     let proof: ProofOfOpening = serde_json::from_str(proof_json)
         .map_err(|e| WinnerVerifyError::DeserializeError(e.to_string()))?;
         

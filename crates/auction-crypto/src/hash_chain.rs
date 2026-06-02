@@ -189,7 +189,7 @@ mod tests {
         let mut bad = c.build_entry(b"x".to_vec());
         bad.sequence = 99;
         bad.server_signature = s.sign(&bad.entry_hash.0);
-        assert!(matches!(c.clone_for_test().append(bad), Err(ChainError::SequenceMismatch { .. })));
+        assert!(matches!(HashChain::restore(c.entries().to_vec()).unwrap().append(bad), Err(ChainError::SequenceMismatch { .. })));
     }
     #[test] fn bad_sig() {
         let (c,_) = build(2);
@@ -217,11 +217,5 @@ mod tests {
         let e = &c.entries()[0];
         let e2: ChainEntry = serde_json::from_str(&serde_json::to_string(e).unwrap()).unwrap();
         assert_eq!(e.entry_hash, e2.entry_hash);
-    }
-}
-
-impl HashChain {
-    fn clone_for_test(&self) -> HashChain {
-        HashChain::restore(self.entries().to_vec()).unwrap()
     }
 }

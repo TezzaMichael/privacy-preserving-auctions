@@ -72,7 +72,6 @@ pub fn verify_auction_transcript(t: &AuctionTranscript) -> VerificationResult {
         Err(e) => CheckResult::fail(e),
     };
 
-    // Passiamo i parametri dell'asta al winner
     let winner_proof = match &t.winner {
         None => CheckResult::fail("no winner reveal"),
         Some(w) => match verify_winner_proof(&w.commitment_hex, w.revealed_value, &w.proof_json, gens, t.min_bid, t.max_bid, t.bid_step) {
@@ -81,24 +80,19 @@ pub fn verify_auction_transcript(t: &AuctionTranscript) -> VerificationResult {
         },
     };
 
-    // Passiamo i parametri dell'asta ai loser
-    // Passiamo i parametri dell'asta ai loser
     let loser_proofs = match &t.winner {
         None => CheckResult::fail("cannot verify losers without winner reveal"),
         Some(w) => {
-            // CONTA QUANTI PARTECIPANTI CI SONO
             let total_bids = t.bulletin_board.iter()
                 .filter(|e| matches!(e.entry_kind, auction_core::bulletin_board::EntryKind::SealedBid))
                 .count();
 
-            // SE MANCANO DELLE PROVE (es. B non ha mandato la loser proof)
             if total_bids > 0 && t.losers.len() != total_bids - 1 {
                  return VerificationResult {
                     auction_id: t.auction_id,
                     chain_integrity,
                     server_signatures,
                     winner_proof,
-                    // FA FALLIRE LA VERIFICA SE MANCANO PROVE
                     loser_proofs: CheckResult::fail(format!("Missing loser proofs. Expected {}, found {}", total_bids - 1, t.losers.len())),
                     fully_valid: false,
                 };
@@ -198,9 +192,9 @@ mod e2e_tests {
         let charlie_commit = PedersenCommitment::commit(charlie_val, &charlie_blind, &gens);
 
         // Simulate the Bulletin Board recording these bids
-        let (e1, h1) = mock_bb_entry(1, [0u8; 32], &server_signer); // Alice Bid
-        let (e2, h2) = mock_bb_entry(2, h1, &server_signer);        // Bob Bid
-        let (e3, _)  = mock_bb_entry(3, h2, &server_signer);        // Charlie Bid
+        let (e1, h1) = mock_bb_entry(0, [0u8; 32], &server_signer); // Alice Bid
+        let (e2, h2) = mock_bb_entry(1, h1, &server_signer);        // Bob Bid
+        let (e3, _)  = mock_bb_entry(2, h2, &server_signer);        // Charlie Bid
 
         // ==========================================
         // PHASE 3: WINNER REVEAL

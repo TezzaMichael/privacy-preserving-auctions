@@ -19,3 +19,4 @@ thiserror              = { workspace = true }
 bulletproofs           = { workspace = true }
 merlin                 = { workspace = true }
 curve25519-dalek-ng    = { workspace = true }
+uuid.workspace = true

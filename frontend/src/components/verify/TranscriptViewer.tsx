@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
 import type { BBEntry, SealedBid, WinnerReveal, LoserProof } from "@/types";
 import { shortHash, entryKindColor, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";

@@ -68,7 +68,7 @@ pub fn create_proof_of_opening(value: u64, blinding_hex: &str, commitment_hex: &
     let commitment = PedersenCommitment::from_hex(commitment_hex)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
     
-    // Genera il vero proof di Schnorr usando OsRng
+    // Generation of the proof may fail if the parameters are out of bounds (e.g., value > max allowed bid)
     let proof = ProofOfOpening::prove(value, &r, &commitment, &gens, &mut rand::rngs::OsRng);
     serde_json::to_string(&proof)
         .map_err(|e| JsValue::from_str(&e.to_string()))

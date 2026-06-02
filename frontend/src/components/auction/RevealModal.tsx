@@ -62,12 +62,11 @@ export default function RevealModal({ auctionId, myBid, currentWinnerValue, onCl
     } catch (err: any) {
       const msg = err.message?.toLowerCase();
       
-      // BAN TRAP: Se la prova crittografica è sbagliata, banna l'utente
       if (msg.includes("invalid") || msg.includes("sync") || msg.includes("proof")) {
           localStorage.setItem(`banned_${auctionId}`, "true");
           toast.error("Fraud detected! You have been disqualified.");
           onClose();
-          window.location.reload(); // Forza il ricaricamento per mostrare il banner rosso
+          window.location.reload(); 
       } else {
           toast.error(err.message);
       }

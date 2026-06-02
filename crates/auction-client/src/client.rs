@@ -1,4 +1,4 @@
-use reqwest::{Client, StatusCode};
+use reqwest::{Client};
 use serde::de::DeserializeOwned;
 use uuid::Uuid;
 use auction_core::{

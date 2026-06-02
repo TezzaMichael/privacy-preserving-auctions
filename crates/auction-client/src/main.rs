@@ -1,11 +1,10 @@
-use std::{collections::HashMap, path::PathBuf};
+use std;
 use anyhow::{Context, Result};
 use uuid::Uuid;
 use auction_crypto::pedersen::PedersenGenerators;
 use auction_client::{
     bid::{create_proof_of_opening, create_sealed_bid, BidSecret},
     client::AuctionClient,
-    errors::ClientError,
     identity::{Identity, IdentityFile},
     verify::ClientVerifier,
 };

@@ -4,7 +4,7 @@ use auction_crypto::{
     signature::ServerVerifier,
 };
 use auction_verifier::{
-    bulletin_board::{verify_chain_integrity, verify_chain_with_signatures},
+    bulletin_board::{verify_chain_with_signatures},
     transcript::{verify_auction_transcript, AuctionTranscript, LoserData, WinnerData, VerificationResult},
 };
 use crate::{client::AuctionClient, errors::ClientError};
@@ -35,7 +35,6 @@ impl ClientVerifier {
         client: &AuctionClient,
         auction_id: Uuid,
     ) -> Result<VerificationResult, ClientError> {
-        let bb = client.get_bulletin_board(auction_id).await?;
         let winner_detail = client.get_winner_reveal(auction_id).await.ok();
         let losers_resp = client.list_loser_proofs(auction_id).await?;
         let bids_resp = client.list_bids(auction_id).await?;
@@ -64,8 +63,7 @@ impl ClientVerifier {
         let auction = client.get_auction(auction_id).await?; 
 
         let bb = client.get_bulletin_board(auction_id).await?;
-        let winner_detail = client.get_winner_reveal(auction_id).await.ok();
-
+        
         let transcript = AuctionTranscript {
             auction_id,
             min_bid: auction.min_bid as u64,                    // <-- AGGIUNTO

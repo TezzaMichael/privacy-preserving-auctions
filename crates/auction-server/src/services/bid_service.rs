@@ -1,6 +1,6 @@
 use sqlx::SqlitePool;
 use uuid::Uuid;
-use auction_core::{bid::SealedBid, enums::AuctionStatus, errors::AuctionError};
+use auction_core::{bid::SealedBid, errors::AuctionError};
 use auction_crypto::keys::verify_commitment_signature;
 use crate::storage::bid_repo::BidRepo;
 
@@ -43,12 +43,6 @@ impl BidService {
 
     pub async fn get_by_id(&self, id: Uuid) -> Result<SealedBid, AuctionError> {
         self.repo.find_by_id(id).await
-    }
-
-    pub async fn find_by_bidder_and_auction(
-        &self, bidder_id: Uuid, auction_id: Uuid,
-    ) -> Result<Option<SealedBid>, AuctionError> {
-        self.repo.find_by_bidder_and_auction(bidder_id, auction_id).await
     }
 
     pub async fn update_bb_sequence(&self, id: Uuid, seq: i64) -> Result<(), AuctionError> {

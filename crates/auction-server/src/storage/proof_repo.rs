@@ -85,13 +85,6 @@ impl ProofRepo {
         .map_err(AuctionError::Storage)
     }
 
-    pub async fn mark_loser_proof_verified(&self, id: Uuid) -> Result<(), AuctionError> {
-        sqlx::query!("UPDATE loser_proofs SET verified = TRUE WHERE id = ?", id)
-            .execute(&self.0)
-            .await?;
-        Ok(())
-    }
-
     pub async fn update_loser_bb_sequence(&self, id: Uuid, seq: i64) -> Result<(), AuctionError> {
         sqlx::query!("UPDATE loser_proofs SET bb_sequence = ? WHERE id = ?", seq, id)
             .execute(&self.0)

@@ -15,7 +15,6 @@ use crate::{
 };
 
 pub struct AppState {
-    pub pool: SqlitePool,
     pub jwt_secret: String,
     pub server_signer: ServerSigner,
     pub server_verifier: ServerVerifier,
@@ -41,7 +40,6 @@ impl AppState {
             bid_service: BidService::new(pool.clone()),
             bulletin_board_service: BulletinBoardService::new(pool.clone()),
             proof_service: ProofService::new(pool.clone()),
-            pool,
             jwt_secret: cfg.jwt_secret.clone(),
             server_signer,
             server_verifier,
