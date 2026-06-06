@@ -7,6 +7,7 @@ import type { Auction, SealedBid, WinnerReveal, LoserProof, BBEntry } from "@/ty
 import { useAuthStore } from "@/store/auth";
 import { loadSecret } from "@/lib/crypto";
 import { createProofOfOpeningWasm } from "@/lib/wasm";
+import { Clock } from "lucide-react";
 
 import AuctionHeader from "@/components/auction/AuctionHeader";
 import BidsPanel from "@/components/auction/BidsPanel";
@@ -140,6 +141,30 @@ export default function AuctionPage() {
     return () => clearInterval(interval);
   }, [auction?.status, winner, id, isBanned, token]);
 
+const [proofTimeLeft, setProofTimeLeft] = useState<string>("");
+
+useEffect(() => {
+  if (!auction || auction.status !== "ProofPhase") return;
+  const ONE_HOUR_IN_MS = 60 * 60 * 1000;
+  const deadline = new Date(auction.end_time).getTime() + ONE_HOUR_IN_MS; 
+
+  const interval = setInterval(() => {
+    const now = new Date().getTime();
+    const distance = deadline - now;
+
+    if (distance <= 0) {
+      setProofTimeLeft("Time's up!");
+      clearInterval(interval);
+    } else {
+      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+      setProofTimeLeft(`${minutes}m ${seconds}s`);
+    }
+  }, 1000);
+
+  return () => clearInterval(interval);
+}, [auction]);
+
   const myBid = bids.find(b => b.bidder_id === user?.user_id);
   useEffect(() => {
     if (!auction || auction.status !== "ClaimPhase" || !myBid || !token || winner || isBanned) return;
@@ -263,21 +288,23 @@ export default function AuctionPage() {
 
       {auction.status === "ProofPhase" && winner && (
         <div className={`border rounded-xl p-6 text-left shadow-lg transition-all duration-300 ${
-          amIWinner 
-            ? 'bg-emerald-950/40 border-emerald-500/50 shadow-emerald-900/20' 
-            : 'bg-amber-950/40 border-amber-500/50 shadow-amber-900/20'
+          isCreator 
+            ? 'bg-blue-950/40 border-blue-500/50 shadow-blue-900/20' 
+            : (amIWinner ? 'bg-emerald-950/40 border-emerald-500/50 shadow-emerald-900/20' : 'bg-amber-950/40 border-amber-500/50 shadow-amber-900/20')
         }`}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className={`text-lg font-bold uppercase tracking-wider mb-1 flex items-center gap-2 ${
-                amIWinner ? 'text-emerald-400' : 'text-amber-400'
+                isCreator ? 'text-blue-400' : (amIWinner ? 'text-emerald-400' : 'text-amber-400')
               }`}>
-                {amIWinner ? '🎉 Provisional Winner' : '⚖️ Standing Update'}
+                {isCreator ? '⚖️ Provisional Winner' : (amIWinner ? '🎉 Provisional Winner' : '⚖️ Standing Update')}
               </h2>
               <p className="text-slate-200 text-sm">
-                {amIWinner 
-                  ? "You are currently the winner! Wait for other participants' proofs or until the phase closes."
-                  : "You are not the winner currently. If your bid is higher, submit a proof to challenge!"
+                {isCreator 
+                  ? "A participant has claimed the win. Waiting for losers to submit proofs or for the phase to close."
+                  : (amIWinner 
+                    ? "You are currently the winner! Wait for other participants' proofs or until the phase closes."
+                    : "You are not the winner currently. If your bid is higher, submit a proof to challenge!")
                 }
               </p>
             </div>
@@ -286,34 +313,48 @@ export default function AuctionPage() {
               <div className="text-2xl font-mono font-bold text-white">{winner.revealed_value} ₿</div>
             </div>
           </div>
+          <div className="mt-5 p-4 bg-black/30 rounded-lg border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <Clock size={20} className="text-amber-400 mt-0.5 shrink-0" />
+            <p className="text-sm text-slate-300 leading-relaxed">
+              <strong className="text-white font-semibold">Warning:</strong> You must submit your proof within one hour of the deadline. 
+              If you fail to submit it by the deadline, your submission will still be accepted, but your result will not be counted.
+            </p>
+          </div>
+          <div className="bg-slate-950 px-4 py-2 rounded-md text-sm font-mono font-medium text-amber-400 whitespace-nowrap shadow-inner border border-white/5">
+            ⏳ {proofTimeLeft || "Calculating..."}
+      </div>
+    </div>
         </div>
       )}
 
       {auction.status === "Closed" && (
         <div className={`border rounded-xl p-6 text-left shadow-lg transition-all duration-300 ${
           hasValidWinner 
-            ? amIWinner 
-              ? 'bg-emerald-950/40 border-emerald-500/50 shadow-emerald-900/20' 
-              : 'bg-rose-950/40 border-rose-500/50 shadow-rose-900/20'
+            ? isCreator 
+              ? 'bg-blue-950/40 border-blue-500/50 shadow-blue-900/20' 
+              : (amIWinner ? 'bg-emerald-950/40 border-emerald-500/50 shadow-emerald-900/20' : 'bg-rose-950/40 border-rose-500/50 shadow-rose-900/20')
             : 'bg-slate-800 border-slate-600 shadow-slate-900/20'
         }`}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className={`text-lg font-bold uppercase tracking-wider mb-1 flex items-center gap-2 ${
                 hasValidWinner 
-                  ? amIWinner ? 'text-emerald-400' : 'text-rose-400'
+                  ? isCreator ? 'text-blue-400' : (amIWinner ? 'text-emerald-400' : 'text-rose-400')
                   : 'text-slate-400'
               }`}>
                 {hasValidWinner 
-                  ? amIWinner ? '🏆 YOU WON!' : '❌ YOU LOST' 
+                  ? isCreator ? '🏁 AUCTION CONCLUDED' : (amIWinner ? '🏆 YOU WON!' : '❌ YOU LOST')
                   : '⚪ NO WINNER'
                 }
               </h2>
               <p className="text-slate-200 text-sm">
                 {hasValidWinner 
-                  ? amIWinner 
-                    ? `Congratulations! You won the auction with a final bid of ${winner.revealed_value} ₿.`
-                    : `The auction has ended. The winning bid was ${winner.revealed_value} ₿.`
+                  ? isCreator 
+                    ? `The auction has ended successfully. The winning bid was ${winner.revealed_value} ₿.`
+                    : (amIWinner 
+                      ? `Congratulations! You won the auction with a final bid of ${winner.revealed_value} ₿.`
+                      : `The auction has ended. The winning bid was ${winner.revealed_value} ₿.`)
                   : "The auction closed without any verified claims. There is no winner for this auction."
                 }
               </p>
