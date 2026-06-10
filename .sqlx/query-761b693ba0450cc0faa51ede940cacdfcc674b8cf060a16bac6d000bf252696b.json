@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE winner_reveals SET is_valid = 0 WHERE auction_id = ? AND is_valid = 1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "761b693ba0450cc0faa51ede940cacdfcc674b8cf060a16bac6d000bf252696b"
+}

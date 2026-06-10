@@ -25,7 +25,7 @@ impl ProofRepo {
                winner_id as "winner_id!: Uuid", bid_id as "bid_id!: Uuid",
                revealed_value, proof_json, bb_sequence,
                submitted_at as "submitted_at: _"
-               FROM winner_reveals WHERE auction_id = ?"#,
+               FROM winner_reveals WHERE auction_id = ? AND is_valid = 1"#, 
             auction_id
         )
         .fetch_optional(&self.0)
@@ -93,7 +93,7 @@ impl ProofRepo {
     }
 
     pub async fn delete_winner_reveal(&self, auction_id: Uuid) -> Result<(), AuctionError> {
-        sqlx::query("DELETE FROM winner_reveals WHERE auction_id = ?")
+        sqlx::query("UPDATE winner_reveals SET is_valid = 0 WHERE auction_id = ? AND is_valid = 1") 
             .bind(auction_id)
             .execute(&self.0)
             .await
@@ -102,7 +102,7 @@ impl ProofRepo {
     }
 
     pub async fn delete_winner(&self, auction_id: Uuid) -> Result<(), sqlx::Error> {
-        sqlx::query!("DELETE FROM winner_reveals WHERE auction_id = ?", auction_id)
+        sqlx::query!("UPDATE winner_reveals SET is_valid = 0 WHERE auction_id = ? AND is_valid = 1", auction_id) 
             .execute(&self.0)
             .await?;
         Ok(())

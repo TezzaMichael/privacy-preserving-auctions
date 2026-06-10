@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use axum::Router;
-use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use std::str::FromStr;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -25,9 +26,12 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
+    let db_options = SqliteConnectOptions::from_str(&cfg.database_url)?
+    .create_if_missing(true);
+
     let pool = SqlitePoolOptions::new()
         .max_connections(10)
-        .connect(&cfg.database_url)
+        .connect_with(db_options)
         .await?;
 
     sqlx::migrate!("./src/migrations").run(&pool).await?;
@@ -137,8 +141,8 @@ async fn main() -> anyhow::Result<()> {
         .with_state(state);
 
     let addr = format!("{}:{}", cfg.host, cfg.port);
-    tracing::info!("listening on {addr}");
     let listener = tokio::net::TcpListener::bind(&addr).await?;
+    tracing::info!("listening on {addr}");
     axum::serve(listener, app).await?;
     Ok(())
 }
